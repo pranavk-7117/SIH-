@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Sparkles, ArrowRight } from "lucide-react";
 import { DemoMap } from "./DemoMap";
 import { Screen } from "./Sidebar";
 
@@ -112,7 +112,7 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
           </div>
 
           {/* Top-Right: Extracted Boundaries */}
-          <div className="bf-card">
+          <div className="bf-card" style={{ background: "#050b14", borderColor: "#10b981" }}>
             <div className="bf-card-header">
               <h3 className="bf-card-title" style={{ fontSize: "12.5px", color: "#34d399" }}>Extracted Boundaries</h3>
               <span className="badge-pill success">Vector Polygons</span>
@@ -121,6 +121,7 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
               data={data}
               mode="extract"
               compact={true}
+              darkBackground={true}
               showCadastral={false}
               showDrone={false}
               showMunicipal={false}
@@ -144,7 +145,7 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
               compact={true}
               showCadastral={true}
               showDrone={true}
-              showMunicipal={true}
+              showMunicipal={false}
               showGNSS={true}
             />
           </div>

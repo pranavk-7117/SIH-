@@ -7,6 +7,7 @@ interface DemoMapProps {
   data: AnyObj;
   mode: "default" | "source" | "extract" | "harmonized" | "discrepancy" | "review";
   compact?: boolean;
+  darkBackground?: boolean;
   selectedParcelId?: string | null;
   onSelectParcel?: (parcelId: string) => void;
   opacityCadastral?: number;
@@ -21,13 +22,19 @@ interface DemoMapProps {
   singleParcelFocus?: number;
 }
 
+// Bounding box tightly surrounding the Kharadi pilot parcels (101 - 112)
+const PARCEL_CLUSTER_BOUNDS: [number, number, number, number] = [
+  73.7729, 18.5594, 73.7754, 18.5613
+];
+
 export const DemoMap: React.FC<DemoMapProps> = ({
   data,
   mode,
   compact = false,
+  darkBackground = false,
   selectedParcelId,
   onSelectParcel,
-  opacityCadastral = 0.7,
+  opacityCadastral = 0.75,
   opacityDrone = 0.8,
   opacityMunicipal = 0.6,
   showCadastral = true,
@@ -43,11 +50,11 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [hoveredParcel, setHoveredParcel] = useState<AnyObj | null>(null);
 
-  // Initialize MapLibre
+  // Initialize MapLibre Map
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !data) return;
 
-    const bounds = data.bounds || [73.7725, 18.5590, 73.7758, 18.5618];
+    const bounds = PARCEL_CLUSTER_BOUNDS;
     const centerLon = (bounds[0] + bounds[2]) / 2;
     const centerLat = (bounds[1] + bounds[3]) / 2;
 
@@ -55,6 +62,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       container: containerRef.current,
       style: {
         version: 8,
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         sources: {
           satellite: {
             type: "raster",
@@ -64,35 +72,27 @@ export const DemoMap: React.FC<DemoMapProps> = ({
             tileSize: 256,
             attribution: "Esri World Imagery",
           },
-          osm: {
-            type: "raster",
-            tiles: [
-              "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            ],
-            tileSize: 256,
-            attribution: "OpenStreetMap",
-          },
         },
         layers: [
           {
             id: "bg-color",
             type: "background",
-            paint: { "background-color": "#09131f" },
+            paint: { "background-color": darkBackground ? "#050b14" : "#09131f" },
           },
           {
             id: "satellite-layer",
             type: "raster",
             source: "satellite",
             paint: {
-              "raster-opacity": 0.94,
-              "raster-contrast": 0.08,
-              "raster-saturation": -0.05,
+              "raster-opacity": darkBackground ? 0.0 : 0.95,
+              "raster-contrast": 0.12,
+              "raster-saturation": -0.02,
             },
           },
         ],
       },
       center: [centerLon, centerLat],
-      zoom: compact ? 16.5 : 17.2,
+      zoom: compact ? 17.2 : 17.8,
       attributionControl: false,
     });
 
@@ -100,7 +100,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 
     map.once("load", () => {
       setMapLoaded(true);
-      if (singleParcelFocus) {
+      if (singleParcelFocus && data.cadastral) {
         const found = data.cadastral.features.find((f: AnyObj) => f.properties.parcel_number === singleParcelFocus);
         if (found) {
           const ring = found.geometry.coordinates[0];
@@ -108,20 +108,21 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           const lats = ring.map((p: number[]) => p[1]);
           map.fitBounds(
             [
-              [Math.min(...lons) - 0.0003, Math.min(...lats) - 0.0003],
-              [Math.max(...lons) + 0.0003, Math.max(...lats) + 0.0003],
+              [Math.min(...lons) - 0.0002, Math.min(...lats) - 0.0002],
+              [Math.max(...lons) + 0.0002, Math.max(...lats) + 0.0002],
             ],
-            { padding: 40, duration: 0 }
+            { padding: compact ? 30 : 60, duration: 0 }
           );
           return;
         }
       }
+
       map.fitBounds(
         [
-          [bounds[0] - 0.0001, bounds[1] - 0.0001],
-          [bounds[2] + 0.0001, bounds[3] + 0.0001],
+          [bounds[0] - 0.00008, bounds[1] - 0.00008],
+          [bounds[2] + 0.00008, bounds[3] + 0.00008],
         ],
-        { padding: compact ? 20 : 50, duration: 0 }
+        { padding: compact ? 18 : 45, duration: 0 }
       );
     });
 
@@ -131,7 +132,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       map.remove();
       mapRef.current = null;
     };
-  }, [data, singleParcelFocus]);
+  }, [data, singleParcelFocus, darkBackground]);
 
   // Update Geospatial Layers & GeoJSON sources
   useEffect(() => {
@@ -140,6 +141,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 
     const safeRemove = (id: string) => {
       if (map.getLayer(`${id}-fill`)) map.removeLayer(`${id}-fill`);
+      if (map.getLayer(`${id}-line-glow`)) map.removeLayer(`${id}-line-glow`);
       if (map.getLayer(`${id}-line`)) map.removeLayer(`${id}-line`);
       if (map.getLayer(`${id}-point`)) map.removeLayer(`${id}-point`);
       if (map.getLayer(`${id}-labels`)) map.removeLayer(`${id}-labels`);
@@ -148,7 +150,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 
     // 1. Municipal Road Context
     safeRemove("municipal");
-    if (showMunicipal && data.municipal) {
+    if (showMunicipal && data.municipal && !darkBackground) {
       map.addSource("municipal", { type: "geojson", data: data.municipal });
       map.addLayer({
         id: "municipal-line",
@@ -158,14 +160,14 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           "line-color": "#38bdf8",
           "line-width": 3.0,
           "line-opacity": opacityMunicipal,
-          "line-dasharray": [1.5, 1],
+          "line-dasharray": [2, 1],
         },
       });
     }
 
     // 2. Drone Physical Footprints (Derived from OSM)
     safeRemove("drone");
-    if (showDrone && data.buildings) {
+    if (showDrone && data.buildings && !darkBackground) {
       map.addSource("drone", { type: "geojson", data: data.buildings });
       map.addLayer({
         id: "drone-fill",
@@ -182,7 +184,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         source: "drone",
         paint: {
           "line-color": "#0284c7",
-          "line-width": 2.2,
+          "line-width": 2.5,
           "line-opacity": 0.95,
         },
       });
@@ -190,7 +192,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 
     // 3. Cadastral Legal Boundaries (Authoritative Simulated)
     safeRemove("cadastral");
-    if (showCadastral && data.cadastral) {
+    if (showCadastral && data.cadastral && !darkBackground) {
       map.addSource("cadastral", { type: "geojson", data: data.cadastral });
       map.addLayer({
         id: "cadastral-fill",
@@ -198,7 +200,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         source: "cadastral",
         paint: {
           "fill-color": mode === "discrepancy" ? ["get", "heatColor"] : "#f59e0b",
-          "fill-opacity": mode === "discrepancy" ? 0.72 : opacityCadastral * 0.4,
+          "fill-opacity": mode === "discrepancy" ? 0.72 : opacityCadastral * 0.45,
         },
       });
       map.addLayer({
@@ -207,25 +209,77 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         source: "cadastral",
         paint: {
           "line-color": mode === "discrepancy" ? "#ffffff" : "#f59e0b",
-          "line-width": mode === "review" ? 3.5 : 2.6,
+          "line-width": mode === "review" ? 3.5 : 2.8,
           "line-dasharray": mode === "review" ? [3, 2] : [1],
           "line-opacity": 1.0,
         },
       });
+
+      // Parcel Number Text Labels
+      map.addLayer({
+        id: "cadastral-labels",
+        type: "symbol",
+        source: "cadastral",
+        layout: {
+          "text-field": ["to-string", ["get", "parcel_number"]],
+          "text-size": 13,
+          "text-font": ["Open Sans Bold"],
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2.0,
+        },
+      });
     }
 
-    // 4. Extracted AI Boundaries (if mode is extract)
+    // 4. Extracted AI Boundaries (for AI Extraction screen)
     safeRemove("extracted");
-    if ((mode === "extract" || mode === "source") && data.extracted) {
+    if ((mode === "extract" || darkBackground) && data.extracted) {
       map.addSource("extracted", { type: "geojson", data: data.extracted });
+      
+      // Background glow line
+      map.addLayer({
+        id: "extracted-line-glow",
+        type: "line",
+        source: "extracted",
+        paint: {
+          "line-color": "#10b981",
+          "line-width": 6.0,
+          "line-opacity": 0.4,
+          "line-blur": 3,
+        },
+      });
+
+      // Core vivid boundary line
       map.addLayer({
         id: "extracted-line",
         type: "line",
         source: "extracted",
         paint: {
-          "line-color": "#10b981",
-          "line-width": 3.2,
-          "line-opacity": 0.95,
+          "line-color": "#22c55e",
+          "line-width": 3.0,
+          "line-opacity": 1.0,
+        },
+      });
+
+      // Parcel ID label for extracted contours
+      map.addLayer({
+        id: "extracted-labels",
+        type: "symbol",
+        source: "extracted",
+        layout: {
+          "text-field": ["to-string", ["get", "parcel_id"]],
+          "text-size": 12,
+          "text-font": ["Open Sans Bold"],
+          "text-allow-overlap": true,
+        },
+        paint: {
+          "text-color": "#4ade80",
+          "text-halo-color": "#050b14",
+          "text-halo-width": 2.0,
         },
       });
     }
@@ -249,7 +303,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         source: "harmonized",
         paint: {
           "line-color": "#10b981",
-          "line-width": 3.0,
+          "line-width": 3.2,
           "line-opacity": 1.0,
         },
       });
@@ -276,7 +330,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         source: "residuals",
         paint: {
           "line-color": "#ef4444",
-          "line-width": 3.0,
+          "line-width": 3.2,
           "line-opacity": 0.95,
         },
       });
@@ -284,18 +338,35 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 
     // 7. GNSS Survey Control Points
     safeRemove("control");
-    if (showGNSS && data.control) {
+    if (showGNSS && data.control && !darkBackground) {
       map.addSource("control", { type: "geojson", data: data.control });
       map.addLayer({
         id: "control-point",
         type: "circle",
         source: "control",
         paint: {
-          "circle-radius": 7.0,
+          "circle-radius": 7.5,
           "circle-color": "#8b5cf6",
           "circle-stroke-width": 2.5,
           "circle-stroke-color": "#ffffff",
-          "circle-opacity": 0.95,
+          "circle-opacity": 1.0,
+        },
+      });
+      map.addLayer({
+        id: "control-labels",
+        type: "symbol",
+        source: "control",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-size": 11,
+          "text-offset": [0, -1.3],
+          "text-font": ["Open Sans Bold"],
+          "text-allow-overlap": true,
+        },
+        paint: {
+          "text-color": "#d8b4fe",
+          "text-halo-color": "#0f172a",
+          "text-halo-width": 2.0,
         },
       });
     }
@@ -339,6 +410,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
     mapLoaded,
     data,
     mode,
+    darkBackground,
     showCadastral,
     showDrone,
     showMunicipal,
@@ -358,36 +430,38 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       <div ref={containerRef} className="maplibre-container-inner" />
 
       {/* Floating Legend */}
-      <div className="map-floating-legend">
-        {showCadastral && (
-          <span>
-            <i className="amber" /> Cadastral (1960)
-          </span>
-        )}
-        {showDrone && (
-          <span>
-            <i className="cyan" /> Drone Footprint
-          </span>
-        )}
-        {showHarmonized && (
-          <span>
-            <i className="green" /> Harmonized
-          </span>
-        )}
-        {showResiduals && (
-          <span>
-            <i className="red" /> Residual Vector
-          </span>
-        )}
-        {showGNSS && (
-          <span>
-            <i className="purple" /> GNSS Points
-          </span>
-        )}
-      </div>
+      {!darkBackground && (
+        <div className="map-floating-legend">
+          {showCadastral && (
+            <span>
+              <i className="amber" /> Cadastral (1960)
+            </span>
+          )}
+          {showDrone && (
+            <span>
+              <i className="cyan" /> Drone Footprint
+            </span>
+          )}
+          {showHarmonized && (
+            <span>
+              <i className="green" /> Harmonized
+            </span>
+          )}
+          {showResiduals && (
+            <span>
+              <i className="red" /> Residual Vector
+            </span>
+          )}
+          {showGNSS && (
+            <span>
+              <i className="purple" /> GNSS Points
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Hover / Selected Parcel Detail Card */}
-      {(hoveredParcel || selectedParcelId) && (
+      {(hoveredParcel || selectedParcelId) && !darkBackground && (
         <div className="map-floating-popup">
           <b>Parcel {hoveredParcel?.parcel_id || activeParcelNumber}</b>
           <div className="popup-row">
