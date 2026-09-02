@@ -7,7 +7,7 @@ import { staticDemo } from "./demoData";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles.css";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL as string | undefined;
 type AnyObj = Record<string, any>;
 type Screen = "overview" | "upload" | "source" | "extract" | "graph" | "harmonized" | "conflicts" | "review" | "audit";
 
@@ -77,7 +77,7 @@ function buildDerivedDemo() {
 function useDemo() {
   const [demo, setDemo] = useState<AnyObj>(() => buildDerivedDemo());
   useEffect(() => {
-    if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) return;
+    if (!API) return;
     Promise.all([
       fetch(`${API}/demo-data`).then(r => r.json()),
       fetch(`${API}/graph`).then(r => r.json()),
@@ -112,16 +112,6 @@ function Topbar({ screen }: { screen: Screen }) {
   return <header className="topbar"><div><b>{label}</b><span>Project: Pune/Kharadi Pilot Area</span></div><div className="topActions"><button>Pune District <ChevronDown size={14} /></button><Search size={18} /><Bell size={18} /><span className="avatar">AO</span></div></header>;
 }
 
-function ringPath(ring: number[][], bounds: number[], width = 1000, height = 600) {
-  const [minX, minY, maxX, maxY] = bounds;
-  return ring.map(([x, y]) => `${(((x - minX) / (maxX - minX)) * width).toFixed(1)},${(height - ((y - minY) / (maxY - minY)) * height).toFixed(1)}`).join(" ");
-}
-
-function pointXY(point: number[], bounds: number[], width = 1000, height = 600) {
-  const [minX, minY, maxX, maxY] = bounds;
-  return [((point[0] - minX) / (maxX - minX)) * width, height - ((point[1] - minY) / (maxY - minY)) * height];
-}
-
 function DemoMap({ data, harm, selected, mode, compact = false }: { data: AnyObj; harm?: AnyObj; selected?: string; mode: "source" | "extract" | "harmonized" | "conflicts"; compact?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -145,44 +135,51 @@ function DemoMap({ data, harm, selected, mode, compact = false }: { data: AnyObj
       attributionControl: false
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-    map.once("load", () => setLoaded(true));
+    map.once("load", () => {
+      map.fitBounds([[minX, minY], [maxX, maxY]], { padding: compact ? 24 : 56, duration: 0 });
+      setLoaded(true);
+    });
     mapRef.current = map;
   }, [data, compact]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data || !loaded) return;
-    const add = (id: string, geo: AnyObj, type: "line" | "fill" | "circle", color: string, opacity = 0.75) => {
+    const withHeat = (geo: AnyObj) => ({
+      ...geo,
+      features: geo.features.map((feature: AnyObj, index: number) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          heatColor: index % 4 === 0 ? "#ef4444" : index % 4 === 1 ? "#f59e0b" : "#22c55e"
+        }
+      }))
+    });
+    const add = (id: string, geo: AnyObj, type: "line" | "fill" | "circle", color: string | AnyObj, opacity = 0.75, beforeId?: string) => {
       if (map.getLayer(`${id}-line`)) map.removeLayer(`${id}-line`);
       if (map.getLayer(id)) map.removeLayer(id);
       if (map.getSource(id)) map.removeSource(id);
       map.addSource(id, { type: "geojson", data: geo });
       if (type === "fill") {
-        map.addLayer({ id, type: "fill", source: id, paint: { "fill-color": color, "fill-opacity": opacity } });
-        map.addLayer({ id: `${id}-line`, type: "line", source: id, paint: { "line-color": color, "line-width": 2.5 } });
+        map.addLayer({ id, type: "fill", source: id, paint: { "fill-color": color, "fill-opacity": opacity } } as any, beforeId);
+        map.addLayer({ id: `${id}-line`, type: "line", source: id, paint: { "line-color": typeof color === "string" ? color : "#111827", "line-width": id.includes("cadastral") ? 2.6 : 1.8, "line-dasharray": id.includes("cadastral") ? [2, 1.5] : [1, 0] } } as any);
       } else if (type === "line") {
-        map.addLayer({ id, type: "line", source: id, paint: { "line-color": color, "line-width": id.includes("residual") ? 4 : 3, "line-opacity": opacity } });
+        map.addLayer({ id, type: "line", source: id, paint: { "line-color": color, "line-width": id.includes("residual") ? 3.5 : 2.4, "line-opacity": opacity } } as any);
       } else {
-        map.addLayer({ id, type: "circle", source: id, paint: { "circle-radius": 6, "circle-color": color, "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
+        map.addLayer({ id, type: "circle", source: id, paint: { "circle-radius": 5.5, "circle-color": color, "circle-stroke-width": 2, "circle-stroke-color": "#fff" } } as any);
       }
     };
-    add("municipal", data.municipal, "line", "#64748b", 0.55);
-    add("buildings", data.buildings, "fill", "#0891b2", 0.38);
-    add("cadastral", data.cadastral, "fill", "#f59e0b", mode === "source" ? 0.22 : 0.12);
+    const heatColor = ["get", "heatColor"];
+    add("municipal", data.municipal, "line", "#f8fafc", 0.65);
+    add("buildings", mode === "conflicts" ? withHeat(data.buildings) : data.buildings, "fill", mode === "conflicts" ? heatColor : "#38bdf8", mode === "conflicts" ? 0.34 : 0.28);
+    add("cadastral", mode === "conflicts" ? withHeat(data.cadastral) : data.cadastral, "fill", mode === "conflicts" ? heatColor : "#f59e0b", mode === "source" ? 0.26 : 0.18);
     add("control", data.control, "circle", "#7c3aed");
     if (mode === "extract") add("extract", harm?.aligned ?? data.buildings, "line", "#22c55e", 0.9);
     if (mode === "harmonized") {
       add("aligned", harm?.aligned ?? data.cadastral, "fill", "#22c55e", 0.2);
       add("residuals", residualLines, "line", "#ef4444", 0.85);
     }
-    if (mode === "conflicts") add("conflict-heat", data.cadastral, "fill", selected ? "#ef4444" : "#f59e0b", 0.32);
   }, [data, harm, mode, selected, loaded]);
-  return <div className={`mapCard ${compact ? "compactMap" : ""}`}><div className="map" ref={ref} /><EvidenceOverlay data={data} harm={harm} residualLines={residualLines} mode={mode} selected={selected} /></div>;
-}
-
-function EvidenceOverlay({ data, harm, residualLines, mode, selected }: { data: AnyObj; harm?: AnyObj; residualLines: AnyObj; mode: string; selected?: string }) {
-  const bounds = data.bounds;
-  const heat = mode === "conflicts";
-  return <svg className="mapOverlay" viewBox="0 0 1000 600" aria-label="Projected evidence overlay"><defs><pattern id="sat" width="34" height="34" patternUnits="userSpaceOnUse"><rect width="34" height="34" fill="#8b9774" /><path d="M0 12H34M12 0V34" stroke="#66785d" strokeWidth="2" opacity=".28" /><circle cx="9" cy="25" r="7" fill="#acb696" opacity=".35" /></pattern><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ef4444" /></marker></defs><rect width="1000" height="600" fill="url(#sat)" opacity=".08" />{data.municipal.features.map((f: AnyObj) => <polyline key={f.id} points={ringPath(f.geometry.coordinates, bounds)} className="roadLine" />)}{data.buildings.features.map((f: AnyObj, i: number) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className={heat ? `heatPoly h${i % 3}` : "buildingPoly"} />)}{data.cadastral.features.map((f: AnyObj, i: number) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className={heat ? `parcelHeat p${i}` : "parcelPoly"} />)}{mode === "extract" && (harm?.aligned?.features ?? []).map((f: AnyObj) => <polyline key={f.id} points={ringPath(f.geometry.coordinates, bounds)} className="extractLine" />)}{mode === "harmonized" && (harm?.aligned?.features ?? []).map((f: AnyObj) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className="alignedPoly" />)}{mode === "harmonized" && residualLines.features.map((f: AnyObj) => { const [x1, y1] = pointXY(f.geometry.coordinates[0], bounds); const [x2, y2] = pointXY(f.geometry.coordinates[1], bounds); return <line key={f.properties.case_id} x1={x1} y1={y1} x2={x2} y2={y2} className="residualArrow" markerEnd="url(#arrow)" />; })}{data.control.features.map((f: AnyObj) => { const [cx, cy] = pointXY(f.geometry.coordinates, bounds); return <circle key={f.id} cx={cx} cy={cy} r="7" className="controlPoint" />; })}{selected && <g className="mapTooltip"><rect x="690" y="250" width="180" height="96" rx="8" /><text x="706" y="278">Parcel 101</text><text x="706" y="304">Conflict: High</text><text x="706" y="330">Action: Review</text></g>}</svg>;
+  return <div className={`mapCard ${compact ? "compactMap" : ""}`}><div className="map" ref={ref} />{selected && <div className="mapInfo"><b>Parcel 101</b><span>Conflict level: High</span><span>Action required: Review</span></div>}</div>;
 }
 
 function Kpi({ icon, label, value, note, warn }: { icon: React.ReactNode; label: string; value: string; note: string; warn?: boolean }) {
@@ -198,8 +195,9 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function UploadScreen({ provenance }: { provenance: AnyObj }) {
+  const [uploads, setUploads] = useState<Record<string, string>>({});
   const cards = [["OSM Buildings", `${provenance.osm_buildings} building footprints`, "Real"], ["OSM Roads", `${provenance.osm_roads} road/highway ways`, "Real"], ["Imagery Basemap", "Esri World Imagery tiles", "Real basemap"], ["Cadastral Layer", "Derived comparison layer", "Simulated"]];
-  return <section className="page"><div className="crumb">Upload & Ingest &gt; New Investigation</div><h1>Upload New Investigation</h1><p className="sub">Static Vercel demo uses source-attributed Pune/Kharadi evidence</p><div className="steps"><b>1 Sources Loaded</b><span /><b>2 Provenance Tagged</b><span /><b>3 Review Ready</b></div><div className="uploadGrid">{cards.map(([title, file, req]) => <div className="uploadCard" key={title}><Database /><h3>{title}</h3><small>{req}</small><p>{file}</p><Check className="okIcon" /></div>)}</div><button className="greenBtn">Next: Source Details</button></section>;
+  return <section className="page"><div className="crumb">Upload & Ingest &gt; New Investigation</div><h1>Upload New Investigation</h1><p className="sub">Static Vercel demo uses source-attributed Pune/Kharadi evidence. You can also select files here for a presentation-only upload flow.</p><div className="steps"><b>1 Sources Loaded</b><span /><b>2 Provenance Tagged</b><span /><b>3 Review Ready</b></div><div className="uploadGrid">{cards.map(([title, file, req]) => <div className="uploadCard" key={title}><Database /><h3>{title}</h3><small>{req}</small><p>{uploads[title] ?? file}</p><label className="fileInput">Choose file<input type="file" onChange={(event) => setUploads({ ...uploads, [title]: event.target.files?.[0]?.name ?? file })} /></label><Check className="okIcon" /></div>)}</div><button className="greenBtn">Next: Source Details</button></section>;
 }
 
 function Overview({ fused, cases, data, harm }: { fused: AnyObj[]; cases: AnyObj[]; data: AnyObj; harm: AnyObj }) {
@@ -217,7 +215,8 @@ function Extraction({ data, extract }: { data: AnyObj; extract: AnyObj }) {
 
 function EvidenceGraph({ graph, setSelected }: { graph: AnyObj; setSelected: (id: string) => void }) {
   const g = useMemo(() => graph, [graph]);
-  return <section className="page"><h1>Spatial Evidence Graph</h1><p className="sub">Visualize relationships between spatial entities and evidence</p><div className="graphShell"><aside className="graphLegend"><h3>Node Types</h3><LegendRows /><h3>Edge Types</h3><p>OSM-derived matches</p><p>Boundary support</p><p>Review candidates</p></aside><div className="graphCanvas"><ForceGraph2D graphData={g as any} nodeLabel="label" linkColor={() => "#64748b"} linkWidth={(l: AnyObj) => 1 + l.confidence * 4} linkDirectionalParticles={2} onNodeClick={(n: AnyObj) => setSelected(n.id)} nodeCanvasObject={(node: AnyObj, ctx, scale) => { ctx.fillStyle = sourceColors[node.source_type] ?? "#334155"; ctx.beginPath(); ctx.arc(node.x!, node.y!, node.synthetic ? 7 : 9, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = "#e2e8f0"; ctx.font = `${11 / scale}px sans-serif`; ctx.fillText(node.label, node.x! + 10, node.y! + 4); }} /></div><aside className="graphInfo"><h3>Selected Node</h3><b>Parcel 101</b><p>Connected to simulated cadastral, real OSM building, imagery basemap, and control evidence.</p></aside></div></section>;
+  const [node, setNode] = useState<AnyObj | null>(null);
+  return <section className="page"><h1>Spatial Evidence Graph</h1><p className="sub">Visualize relationships between spatial entities and evidence</p><div className="graphShell"><aside className="graphLegend"><h3>Node Types</h3><p><i className="amber" /> Simulated cadastral parcels</p><p><i className="green" /> Real OSM buildings</p><p><i className="red" /> Review candidates</p><h3>Edge Types</h3><p>OSM-derived matches</p><p>Boundary support</p><p>Review candidates</p></aside><div className="graphCanvas"><ForceGraph2D graphData={g as any} nodeLabel="label" linkColor={(l: AnyObj) => l.confidence > .7 ? "#22c55e" : "#f59e0b"} linkWidth={(l: AnyObj) => 1 + l.confidence * 4} linkDirectionalParticles={2} onNodeClick={(n: AnyObj) => { setSelected(n.id); setNode(n); }} nodeCanvasObject={(n: AnyObj, ctx, scale) => { const active = node?.id === n.id; ctx.fillStyle = sourceColors[n.source_type] ?? "#334155"; ctx.beginPath(); ctx.arc(n.x!, n.y!, active ? 12 : n.synthetic ? 7 : 9, 0, 2 * Math.PI); ctx.fill(); ctx.strokeStyle = active ? "#f8fafc" : "rgba(255,255,255,.75)"; ctx.lineWidth = active ? 4 : 2; ctx.stroke(); ctx.fillStyle = "#e2e8f0"; ctx.font = `${11 / scale}px sans-serif`; ctx.fillText(n.label, n.x! + 12, n.y! + 4); }} /></div><aside className="graphInfo"><h3>Selected Node</h3><b>{node?.label ?? "Click a node"}</b><p>{node ? "Connected to simulated cadastral, real OSM building, imagery basemap, and control evidence." : "Select a parcel or OSM building to inspect its evidence neighbourhood."}</p><Metric label="Graph Nodes" value={String(g.nodes?.length ?? 0)} /><Metric label="Evidence Links" value={String(g.links?.length ?? 0)} /></aside></div></section>;
 }
 
 function Harmonized({ data, harm, temporal }: { data: AnyObj; harm: AnyObj; temporal: AnyObj[] }) {
@@ -233,7 +232,7 @@ function Conflicts({ data, harm, cases, setScreen }: { data: AnyObj; harm: AnyOb
 function Review({ cases }: { cases: AnyObj[] }) {
   const selected = cases[0] ?? {};
   async function review(decision: string) {
-    if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+    if (!API) {
       alert(`Stored demo decision: ${decision}. Original evidence untouched.`);
       return;
     }
@@ -256,7 +255,7 @@ function App() {
   const [screen, setScreen] = useState<Screen>("overview");
   const [selected, setSelected] = useState("");
   const demo = useDemo();
-  const exportHref = import.meta.env.PROD && !import.meta.env.VITE_API_URL ? `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ cases: demo.cases, provenance: demo.data.provenance }, null, 2))}` : `${API}/export`;
+  const exportHref = !API ? `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ cases: demo.cases, provenance: demo.data.provenance }, null, 2))}` : `${API}/export`;
   return <main><Sidebar screen={screen} setScreen={setScreen} /><div className="content"><Topbar screen={screen} />{screen === "overview" && <Overview fused={demo.fused} cases={demo.cases} data={demo.data} harm={demo.harm} />}{screen === "upload" && <UploadScreen provenance={demo.data.provenance} />}{screen === "source" && <SourceViewer data={demo.data} />}{screen === "extract" && <Extraction data={demo.data} extract={demo.extract} />}{screen === "graph" && <EvidenceGraph graph={demo.graph} setSelected={setSelected} />}{screen === "harmonized" && <Harmonized data={demo.data} harm={demo.harm} temporal={demo.temporal} />}{screen === "conflicts" && <Conflicts data={demo.data} harm={demo.harm} cases={demo.cases} setScreen={setScreen} />}{screen === "review" && <Review cases={demo.cases} />}{screen === "audit" && <Audit />}{(screen === "graph" || screen === "conflicts") && selected && <div className="toast">Selected {selected}: evidence filters synced</div>}<a className="export" href={exportHref} download="bhumi-fuse-demo-export.json"><Download size={16} /> Export</a></div></main>;
 }
 
