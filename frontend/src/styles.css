@@ -65,20 +65,20 @@ input[type="range"] { accent-color: #16a34a; width: 100%; }
 .badge.danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
 .mapCard { position: relative; height: 560px; min-height: 560px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; background: #9ca987; }
 .compactMap { height: 310px; min-height: 260px; }
-.map { width: 100%; height: 100%; opacity: .16; }
+.map { width: 100%; height: 100%; opacity: 1; }
 .mapOverlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .roadLine { fill: none; stroke: #334155; stroke-width: 8; stroke-linecap: round; opacity: .45; }
-.buildingPoly { fill: #38bdf8; stroke: #075985; stroke-width: 4; opacity: .62; }
-.parcelPoly { fill: #f59e0b; stroke: #b45309; stroke-width: 5; opacity: .46; stroke-dasharray: 12 8; }
-.alignedPoly { fill: #22c55e; stroke: #166534; stroke-width: 4; opacity: .38; }
+.buildingPoly { fill: #38bdf8; stroke: #075985; stroke-width: 4; opacity: .42; }
+.parcelPoly { fill: #f59e0b; stroke: #b45309; stroke-width: 5; opacity: .36; stroke-dasharray: 12 8; }
+.alignedPoly { fill: #22c55e; stroke: #166534; stroke-width: 4; opacity: .34; }
 .extractLine { fill: none; stroke: #22c55e; stroke-width: 6; opacity: .95; }
 .residualArrow { stroke: #ef4444; stroke-width: 5; opacity: .95; }
 .controlPoint { fill: #8b5cf6; stroke: #fff; stroke-width: 4; }
-.heatPoly { stroke: #111827; stroke-width: 2; opacity: .72; }
+.heatPoly { stroke: #111827; stroke-width: 2; opacity: .58; }
 .heatPoly.h0 { fill: #22c55e; }
 .heatPoly.h1 { fill: #f59e0b; }
 .heatPoly.h2 { fill: #ef4444; }
-.parcelHeat { stroke: #111827; stroke-width: 3; opacity: .72; }
+.parcelHeat { stroke: #111827; stroke-width: 3; opacity: .58; }
 .parcelHeat.p0, .parcelHeat.p3 { fill: #ef4444; }
 .parcelHeat.p1 { fill: #f59e0b; }
 .parcelHeat.p2 { fill: #22c55e; }

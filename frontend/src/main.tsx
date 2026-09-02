@@ -79,7 +79,29 @@ function DemoMap({ data, harm, selected, mode, compact = false }: { data: AnyObj
   const residualLines = { type: "FeatureCollection", features: (harm?.residuals ?? []).map((r: AnyObj) => ({ type: "Feature", properties: r, geometry: { type: "LineString", coordinates: [r.from, r.to] } })) };
   useEffect(() => {
     if (!ref.current || mapRef.current || !data) return;
-    const map = new maplibregl.Map({ container: ref.current, style: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#cbd5c3" } }] } as any, center: [73.77418, 18.56062], zoom: 16.2, attributionControl: false });
+    const map = new maplibregl.Map({
+      container: ref.current,
+      style: {
+        version: 8,
+        sources: {
+          imagery: {
+            type: "raster",
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            ],
+            tileSize: 256,
+            attribution: "Esri World Imagery"
+          }
+        },
+        layers: [
+          { id: "bg", type: "background", paint: { "background-color": "#9ca987" } },
+          { id: "imagery", type: "raster", source: "imagery", paint: { "raster-opacity": 0.96, "raster-saturation": -0.18, "raster-contrast": 0.12 } }
+        ]
+      } as any,
+      center: [73.77418, 18.56062],
+      zoom: 16.2,
+      attributionControl: false
+    });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.once("load", () => setLoaded(true));
     mapRef.current = map;
@@ -118,7 +140,7 @@ function DemoMap({ data, harm, selected, mode, compact = false }: { data: AnyObj
 function EvidenceOverlay({ data, harm, residualLines, mode, selected }: { data: AnyObj; harm?: AnyObj; residualLines: AnyObj; mode: string; selected?: string }) {
   const bounds = data.bounds;
   const heat = mode === "conflicts";
-  return <svg className="mapOverlay" viewBox="0 0 1000 600" aria-label="Projected evidence overlay"><defs><pattern id="sat" width="34" height="34" patternUnits="userSpaceOnUse"><rect width="34" height="34" fill="#8b9774" /><path d="M0 12H34M12 0V34" stroke="#66785d" strokeWidth="2" opacity=".28" /><circle cx="9" cy="25" r="7" fill="#acb696" opacity=".35" /></pattern><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ef4444" /></marker></defs><rect width="1000" height="600" fill="url(#sat)" opacity=".86" />{data.municipal.features.map((f: AnyObj) => <polyline key={f.id} points={ringPath(f.geometry.coordinates, bounds)} className="roadLine" />)}{data.buildings.features.map((f: AnyObj, i: number) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className={heat ? `heatPoly h${i % 3}` : "buildingPoly"} />)}{data.cadastral.features.map((f: AnyObj, i: number) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className={heat ? `parcelHeat p${i}` : "parcelPoly"} />)}{mode === "extract" && (harm?.aligned?.features ?? []).map((f: AnyObj) => <polyline key={f.id} points={ringPath(f.geometry.coordinates, bounds)} className="extractLine" />)}{mode === "harmonized" && (harm?.aligned?.features ?? []).map((f: AnyObj) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className="alignedPoly" />)}{mode === "harmonized" && residualLines.features.map((f: AnyObj) => { const [x1, y1] = pointXY(f.geometry.coordinates[0], bounds); const [x2, y2] = pointXY(f.geometry.coordinates[1], bounds); return <line key={f.properties.case_id} x1={x1} y1={y1} x2={x2} y2={y2} className="residualArrow" markerEnd="url(#arrow)" />; })}{data.control.features.map((f: AnyObj) => { const [cx, cy] = pointXY(f.geometry.coordinates, bounds); return <circle key={f.id} cx={cx} cy={cy} r="7" className="controlPoint" />; })}{selected && <g className="mapTooltip"><rect x="690" y="250" width="180" height="96" rx="8" /><text x="706" y="278">Parcel 101</text><text x="706" y="304">Conflict: High</text><text x="706" y="330">Action: Review</text></g>}</svg>;
+  return <svg className="mapOverlay" viewBox="0 0 1000 600" aria-label="Projected evidence overlay"><defs><pattern id="sat" width="34" height="34" patternUnits="userSpaceOnUse"><rect width="34" height="34" fill="#8b9774" /><path d="M0 12H34M12 0V34" stroke="#66785d" strokeWidth="2" opacity=".28" /><circle cx="9" cy="25" r="7" fill="#acb696" opacity=".35" /></pattern><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ef4444" /></marker></defs><rect width="1000" height="600" fill="url(#sat)" opacity=".12" />{data.municipal.features.map((f: AnyObj) => <polyline key={f.id} points={ringPath(f.geometry.coordinates, bounds)} className="roadLine" />)}{data.buildings.features.map((f: AnyObj, i: number) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className={heat ? `heatPoly h${i % 3}` : "buildingPoly"} />)}{data.cadastral.features.map((f: AnyObj, i: number) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className={heat ? `parcelHeat p${i}` : "parcelPoly"} />)}{mode === "extract" && (harm?.aligned?.features ?? []).map((f: AnyObj) => <polyline key={f.id} points={ringPath(f.geometry.coordinates, bounds)} className="extractLine" />)}{mode === "harmonized" && (harm?.aligned?.features ?? []).map((f: AnyObj) => <polygon key={f.id} points={ringPath(f.geometry.coordinates[0], bounds)} className="alignedPoly" />)}{mode === "harmonized" && residualLines.features.map((f: AnyObj) => { const [x1, y1] = pointXY(f.geometry.coordinates[0], bounds); const [x2, y2] = pointXY(f.geometry.coordinates[1], bounds); return <line key={f.properties.case_id} x1={x1} y1={y1} x2={x2} y2={y2} className="residualArrow" markerEnd="url(#arrow)" />; })}{data.control.features.map((f: AnyObj) => { const [cx, cy] = pointXY(f.geometry.coordinates, bounds); return <circle key={f.id} cx={cx} cy={cy} r="7" className="controlPoint" />; })}{selected && <g className="mapTooltip"><rect x="690" y="250" width="180" height="96" rx="8" /><text x="706" y="278">Parcel 101</text><text x="706" y="304">Conflict: High</text><text x="706" y="330">Action: Review</text></g>}</svg>;
 }
 
 function Kpi({ icon, label, value, note, warn }: { icon: React.ReactNode; label: string; value: string; note: string; warn?: boolean }) {
