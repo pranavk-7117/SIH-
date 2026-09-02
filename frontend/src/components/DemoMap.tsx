@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useId } from "react";
 import * as maplibregl from "maplibre-gl";
 
 type AnyObj = Record<string, any>;
@@ -22,12 +22,6 @@ interface DemoMapProps {
   singleParcelFocus?: number;
 }
 
-// Bounding box tightly surrounding Kharadi Sector 12 pilot parcels
-const PARCEL_CLUSTER_BOUNDS: [[number, number], [number, number]] = [
-  [73.7728, 18.5592],
-  [73.7755, 18.5615],
-];
-
 export const DemoMap: React.FC<DemoMapProps> = ({
   data,
   mode,
@@ -35,8 +29,8 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   darkBackground = false,
   selectedParcelId,
   onSelectParcel,
-  opacityCadastral = 0.8,
-  opacityDrone = 0.8,
+  opacityCadastral = 0.75,
+  opacityDrone = 0.75,
   opacityMunicipal = 0.6,
   showCadastral = true,
   showDrone = true,
@@ -48,11 +42,16 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [svgPolys, setSvgPolys] = useState<AnyObj[]>([]);
   const [hoveredParcel, setHoveredParcel] = useState<AnyObj | null>(null);
 
-  // Initialize MapLibre Map
+  // Initialize MapLibre
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !data) return;
+
+    const centerLon = 73.7741;
+    const centerLat = 18.5604;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -72,31 +71,144 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           {
             id: "bg-color",
             type: "background",
-            paint: { "background-color": darkBackground ? "#050b14" : "#09131f" },
+            paint: { "background-color": darkBackground ? "#050b14" : "#f1f5f9" },
           },
           {
             id: "satellite-layer",
             type: "raster",
             source: "satellite",
             paint: {
-              "raster-opacity": darkBackground ? 0.0 : 0.95,
-              "raster-contrast": 0.12,
+              "raster-opacity": darkBackground ? 0.0 : 0.94,
+              "raster-contrast": 0.1,
               "raster-saturation": -0.02,
             },
           },
         ],
       },
-      center: [73.7741, 18.5604],
-      zoom: compact ? 17.0 : 17.6,
+      center: [centerLon, centerLat],
+      zoom: compact ? 17.2 : 17.7,
       attributionControl: false,
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
+    const updateSvgOverlay = () => {
+      if (!map || !data.cadastral) return;
+      const parcels = data.cadastral.features || [];
+      const harmonized = data.harmonized?.features || [];
+      const buildings = data.buildings?.features || [];
+      const residuals = data.residuals || [];
+      const controls = data.control?.features || [];
+
+      const projected = parcels.map((p: AnyObj, idx: number) => {
+        const ring = p.geometry.coordinates[0];
+        const screenPts = ring.map((coord: number[]) => {
+          const pt = map.project([coord[0], coord[1]]);
+          return `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+        });
+
+        const centerLonLat = [
+          (ring[0][0] + ring[2][0]) / 2,
+          (ring[0][1] + ring[2][1]) / 2,
+        ];
+        const centerPt = map.project(centerLonLat as [number, number]);
+
+        // Drone / Physical polygon
+        const b = buildings[idx];
+        let dronePts = "";
+        if (b && b.geometry?.coordinates?.[0]) {
+          dronePts = b.geometry.coordinates[0]
+            .map((coord: number[]) => {
+              const pt = map.project([coord[0], coord[1]]);
+              return `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+            })
+            .join(" ");
+        }
+
+        // Harmonized polygon
+        const h = harmonized[idx];
+        let harmPts = "";
+        if (h && h.geometry?.coordinates?.[0]) {
+          harmPts = h.geometry.coordinates[0]
+            .map((coord: number[]) => {
+              const pt = map.project([coord[0], coord[1]]);
+              return `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+            })
+            .join(" ");
+        }
+
+        // Residual vector line
+        const res = residuals[idx];
+        let resLine = null;
+        if (res && res.from && res.to) {
+          const p1 = map.project(res.from);
+          const p2 = map.project(res.to);
+          resLine = { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+        }
+
+        return {
+          id: p.id,
+          parcel_id: p.properties.parcel_id,
+          parcel_number: p.properties.parcel_number,
+          props: p.properties,
+          points: screenPts.join(" "),
+          dronePoints: dronePts,
+          harmPoints: harmPts,
+          residualLine: resLine,
+          cx: centerPt.x,
+          cy: centerPt.y,
+          heatColor: p.properties.heatColor || "#22c55e",
+        };
+      });
+
+      // Projected GNSS control points
+      const projectedGNSS = controls.map((ptFeat: AnyObj) => {
+        const coords = ptFeat.geometry.coordinates;
+        const pt = map.project([coords[0], coords[1]]);
+        return {
+          id: ptFeat.id,
+          name: ptFeat.properties.name,
+          x: pt.x,
+          y: pt.y,
+        };
+      });
+
+      setSvgPolys(projected);
+      (window as any).__projectedGNSS = projectedGNSS;
+    };
+
     map.on("load", () => {
-      renderAllLayers(map);
-      fitMapBounds(map);
+      updateSvgOverlay();
+      if (singleParcelFocus && data.cadastral) {
+        const found = data.cadastral.features.find((f: AnyObj) => f.properties.parcel_number === singleParcelFocus);
+        if (found) {
+          const ring = found.geometry.coordinates[0];
+          const lons = ring.map((p: number[]) => p[0]);
+          const lats = ring.map((p: number[]) => p[1]);
+          map.fitBounds(
+            [
+              [Math.min(...lons) - 0.00025, Math.min(...lats) - 0.00025],
+              [Math.max(...lons) + 0.00025, Math.max(...lats) + 0.00025],
+            ],
+            { padding: compact ? 30 : 60, duration: 0 }
+          );
+          return;
+        }
+      }
+
+      map.fitBounds(
+        [
+          [73.7729, 18.5593],
+          [73.7753, 18.5614],
+        ],
+        { padding: compact ? 15 : 40, duration: 0 }
+      );
     });
+
+    map.on("move", updateSvgOverlay);
+    map.on("zoom", updateSvgOverlay);
+    map.on("resize", updateSvgOverlay);
+    map.on("render", updateSvgOverlay);
 
     mapRef.current = map;
 
@@ -104,311 +216,127 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       map.remove();
       mapRef.current = null;
     };
-  }, [darkBackground]);
-
-  const fitMapBounds = (map: maplibregl.Map) => {
-    if (singleParcelFocus && data.cadastral) {
-      const found = data.cadastral.features.find((f: AnyObj) => f.properties.parcel_number === singleParcelFocus);
-      if (found && found.geometry?.coordinates?.[0]) {
-        const ring = found.geometry.coordinates[0];
-        const lons = ring.map((p: number[]) => p[0]);
-        const lats = ring.map((p: number[]) => p[1]);
-        map.fitBounds(
-          [
-            [Math.min(...lons) - 0.00025, Math.min(...lats) - 0.00025],
-            [Math.max(...lons) + 0.00025, Math.max(...lats) + 0.00025],
-          ],
-          { padding: compact ? 25 : 50, duration: 0 }
-        );
-        return;
-      }
-    }
-
-    map.fitBounds(PARCEL_CLUSTER_BOUNDS, {
-      padding: compact ? 16 : 40,
-      duration: 0,
-    });
-  };
-
-  const renderAllLayers = (map: maplibregl.Map) => {
-    if (!map.isStyleLoaded()) return;
-
-    const safeRemove = (id: string) => {
-      try {
-        if (map.getLayer(`${id}-fill`)) map.removeLayer(`${id}-fill`);
-        if (map.getLayer(`${id}-line-glow`)) map.removeLayer(`${id}-line-glow`);
-        if (map.getLayer(`${id}-line`)) map.removeLayer(`${id}-line`);
-        if (map.getLayer(`${id}-point`)) map.removeLayer(`${id}-point`);
-        if (map.getSource(id)) map.removeSource(id);
-      } catch (e) {
-        console.warn("Layer remove warning:", e);
-      }
-    };
-
-    // 1. Municipal Road Context
-    safeRemove("municipal");
-    if (showMunicipal && data.municipal && !darkBackground) {
-      try {
-        map.addSource("municipal", { type: "geojson", data: data.municipal });
-        map.addLayer({
-          id: "municipal-line",
-          type: "line",
-          source: "municipal",
-          paint: {
-            "line-color": "#38bdf8",
-            "line-width": 3.2,
-            "line-opacity": opacityMunicipal,
-            "line-dasharray": [3, 1],
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding municipal layer:", err);
-      }
-    }
-
-    // 2. Drone Physical Footprints
-    safeRemove("drone");
-    if (showDrone && data.buildings && !darkBackground) {
-      try {
-        map.addSource("drone", { type: "geojson", data: data.buildings });
-        map.addLayer({
-          id: "drone-fill",
-          type: "fill",
-          source: "drone",
-          paint: {
-            "fill-color": mode === "discrepancy" ? ["coalesce", ["get", "heatColor"], "#0ea5e9"] : "#0ea5e9",
-            "fill-opacity": mode === "discrepancy" ? 0.65 : opacityDrone * 0.45,
-          },
-        });
-        map.addLayer({
-          id: "drone-line",
-          type: "line",
-          source: "drone",
-          paint: {
-            "line-color": "#0284c7",
-            "line-width": 2.5,
-            "line-opacity": 0.95,
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding drone layer:", err);
-      }
-    }
-
-    // 3. Cadastral Legal Boundaries
-    safeRemove("cadastral");
-    if (showCadastral && data.cadastral && !darkBackground) {
-      try {
-        map.addSource("cadastral", { type: "geojson", data: data.cadastral });
-        map.addLayer({
-          id: "cadastral-fill",
-          type: "fill",
-          source: "cadastral",
-          paint: {
-            "fill-color": mode === "discrepancy" ? ["coalesce", ["get", "heatColor"], "#f59e0b"] : "#f59e0b",
-            "fill-opacity": mode === "discrepancy" ? 0.75 : opacityCadastral * 0.45,
-          },
-        });
-        map.addLayer({
-          id: "cadastral-line",
-          type: "line",
-          source: "cadastral",
-          paint: {
-            "line-color": mode === "discrepancy" ? "#ffffff" : "#f59e0b",
-            "line-width": mode === "review" ? 3.5 : 2.8,
-            "line-dasharray": mode === "review" ? [3, 2] : [1],
-            "line-opacity": 1.0,
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding cadastral layer:", err);
-      }
-    }
-
-    // 4. Extracted AI Boundaries
-    safeRemove("extracted");
-    if ((mode === "extract" || darkBackground) && data.extracted) {
-      try {
-        map.addSource("extracted", { type: "geojson", data: data.extracted });
-        map.addLayer({
-          id: "extracted-line-glow",
-          type: "line",
-          source: "extracted",
-          paint: {
-            "line-color": "#10b981",
-            "line-width": 6.0,
-            "line-opacity": 0.45,
-          },
-        });
-        map.addLayer({
-          id: "extracted-line",
-          type: "line",
-          source: "extracted",
-          paint: {
-            "line-color": "#22c55e",
-            "line-width": 3.0,
-            "line-opacity": 1.0,
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding extracted layer:", err);
-      }
-    }
-
-    // 5. Harmonized Version
-    safeRemove("harmonized");
-    if ((showHarmonized || mode === "harmonized" || mode === "review") && data.harmonized) {
-      try {
-        map.addSource("harmonized", { type: "geojson", data: data.harmonized });
-        map.addLayer({
-          id: "harmonized-fill",
-          type: "fill",
-          source: "harmonized",
-          paint: {
-            "fill-color": "#10b981",
-            "fill-opacity": 0.38,
-          },
-        });
-        map.addLayer({
-          id: "harmonized-line",
-          type: "line",
-          source: "harmonized",
-          paint: {
-            "line-color": "#10b981",
-            "line-width": 3.2,
-            "line-opacity": 1.0,
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding harmonized layer:", err);
-      }
-    }
-
-    // 6. Residual Lines
-    safeRemove("residuals");
-    if ((showResiduals || mode === "harmonized" || mode === "discrepancy") && data.residuals) {
-      try {
-        const residualFC = {
-          type: "FeatureCollection",
-          features: data.residuals.map((r: AnyObj) => ({
-            type: "Feature",
-            properties: r,
-            geometry: {
-              type: "LineString",
-              coordinates: [r.from, r.to],
-            },
-          })),
-        };
-        map.addSource("residuals", { type: "geojson", data: residualFC });
-        map.addLayer({
-          id: "residuals-line",
-          type: "line",
-          source: "residuals",
-          paint: {
-            "line-color": "#ef4444",
-            "line-width": 3.2,
-            "line-opacity": 0.95,
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding residuals layer:", err);
-      }
-    }
-
-    // 7. GNSS Survey Control Points
-    safeRemove("control");
-    if (showGNSS && data.control && !darkBackground) {
-      try {
-        map.addSource("control", { type: "geojson", data: data.control });
-        map.addLayer({
-          id: "control-point",
-          type: "circle",
-          source: "control",
-          paint: {
-            "circle-radius": 7.5,
-            "circle-color": "#8b5cf6",
-            "circle-stroke-width": 2.5,
-            "circle-stroke-color": "#ffffff",
-            "circle-opacity": 1.0,
-          },
-        });
-      } catch (err) {
-        console.error("Failed adding control layer:", err);
-      }
-    }
-
-    // Mouse events
-    const handleMouseMove = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      if (!e.features || !e.features.length) {
-        map.getCanvas().style.cursor = "";
-        return;
-      }
-      map.getCanvas().style.cursor = "pointer";
-      setHoveredParcel(e.features[0].properties);
-    };
-
-    const handleMouseLeave = () => {
-      map.getCanvas().style.cursor = "";
-      setHoveredParcel(null);
-    };
-
-    const handleClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      if (!e.features || !e.features.length) return;
-      const pid = e.features[0].properties?.parcel_id || e.features[0].properties?.id;
-      if (pid && onSelectParcel) {
-        onSelectParcel(pid);
-      }
-    };
-
-    if (map.getLayer("cadastral-fill")) {
-      map.on("mousemove", "cadastral-fill", handleMouseMove);
-      map.on("mouseleave", "cadastral-fill", handleMouseLeave);
-      map.on("click", "cadastral-fill", handleClick);
-    }
-    if (map.getLayer("drone-fill")) {
-      map.on("mousemove", "drone-fill", handleMouseMove);
-      map.on("mouseleave", "drone-fill", handleMouseLeave);
-      map.on("click", "drone-fill", handleClick);
-    }
-  };
-
-  // Re-render layers whenever props change
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (map.isStyleLoaded()) {
-      renderAllLayers(map);
-      fitMapBounds(map);
-    } else {
-      map.once("styledata", () => {
-        renderAllLayers(map);
-        fitMapBounds(map);
-      });
-    }
-  }, [
-    data,
-    mode,
-    darkBackground,
-    showCadastral,
-    showDrone,
-    showMunicipal,
-    showGNSS,
-    showHarmonized,
-    showResiduals,
-    opacityCadastral,
-    opacityDrone,
-    opacityMunicipal,
-    singleParcelFocus,
-  ]);
+  }, [darkBackground, singleParcelFocus]);
 
   const activeParcelNumber = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
 
-  // Overlay HTML markers for parcel labels so they always render crisply on top of MapLibre
-  const parcelMarkers = data?.cadastral?.features || [];
-
   return (
     <div className={`map-canvas-container ${compact ? "compact" : "large-full"}`}>
+      {/* MapLibre WebGL Canvas */}
       <div ref={containerRef} className="maplibre-container-inner" />
+
+      {/* Synchronized Crisp Vector SVG Overlay */}
+      <svg
+        ref={svgRef}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          zIndex: 5,
+        }}
+      >
+        <defs>
+          <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#10b981" floodOpacity="0.8" />
+          </filter>
+        </defs>
+
+        {svgPolys.map((item) => {
+          const isSelected = selectedParcelId === item.id || activeParcelNumber === String(item.parcel_number);
+
+          return (
+            <g key={item.id} style={{ pointerEvents: "auto", cursor: "pointer" }}>
+              {/* 1. Drone Physical Outline (Blue) */}
+              {showDrone && item.dronePoints && !darkBackground && (
+                <polygon
+                  points={item.dronePoints}
+                  fill={mode === "discrepancy" ? "none" : "#38bdf8"}
+                  fillOpacity={0.25 * opacityDrone}
+                  stroke="#0284c7"
+                  strokeWidth="2.2"
+                />
+              )}
+
+              {/* 2. Cadastral / Heatmap Polygons (Vibrant Colors matching mockup) */}
+              {showCadastral && !darkBackground && (
+                <polygon
+                  points={item.points}
+                  fill={mode === "discrepancy" ? item.heatColor : "#f59e0b"}
+                  fillOpacity={mode === "discrepancy" ? 0.65 : opacityCadastral * 0.45}
+                  stroke={mode === "discrepancy" ? "#ffffff" : isSelected ? "#ffffff" : "#f59e0b"}
+                  strokeWidth={mode === "review" ? "3.5" : isSelected ? "3.0" : "2.2"}
+                  strokeDasharray={mode === "review" ? "6,3" : "none"}
+                  onMouseEnter={() => setHoveredParcel(item.props)}
+                  onMouseLeave={() => setHoveredParcel(null)}
+                  onClick={() => onSelectParcel && onSelectParcel(item.id)}
+                />
+              )}
+
+              {/* 3. AI Extracted Contours (for AI Extraction Screen) */}
+              {(mode === "extract" || darkBackground) && (
+                <polygon
+                  points={item.dronePoints || item.points}
+                  fill="#059669"
+                  fillOpacity={0.25}
+                  stroke="#10b981"
+                  strokeWidth="3.2"
+                  filter="url(#glow-green)"
+                />
+              )}
+
+              {/* 4. Harmonized Polygons (Green) */}
+              {(showHarmonized || mode === "harmonized" || mode === "review") && item.harmPoints && (
+                <polygon
+                  points={item.harmPoints}
+                  fill="#10b981"
+                  fillOpacity={0.4}
+                  stroke="#10b981"
+                  strokeWidth="3.2"
+                />
+              )}
+
+              {/* 5. Residual Vectors (Red lines with endpoint dots) */}
+              {(showResiduals || mode === "harmonized" || mode === "discrepancy") && item.residualLine && (
+                <g>
+                  <line
+                    x1={item.residualLine.x1}
+                    y1={item.residualLine.y1}
+                    x2={item.residualLine.x2}
+                    y2={item.residualLine.y2}
+                    stroke="#ef4444"
+                    strokeWidth="3.0"
+                  />
+                  <circle cx={item.residualLine.x2} cy={item.residualLine.y2} r="4" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
+                </g>
+              )}
+
+              {/* 6. Parcel Number Labels Centered Inside Each Polygon */}
+              {!darkBackground && item.cx && item.cy && (
+                <text
+                  x={item.cx}
+                  y={item.cy + 4}
+                  textAnchor="middle"
+                  fill="#ffffff"
+                  fontSize={compact ? "11px" : "13px"}
+                  fontWeight="900"
+                  style={{
+                    paintOrder: "stroke",
+                    stroke: "#0f172a",
+                    strokeWidth: "3px",
+                    strokeLinejoin: "round",
+                    userSelect: "none",
+                  }}
+                >
+                  {item.parcel_number}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
 
       {/* Floating Legend */}
       {!darkBackground && (
@@ -460,7 +388,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
             <b>{hoveredParcel?.confidence ? `${Math.round(hoveredParcel.confidence * 100)}%` : "34%"}</b>
           </div>
           <div className="popup-row" style={{ marginTop: "4px" }}>
-            <span style={{ color: "#38bdf8", fontWeight: 700 }}>Action Required:</span>
+            <span style={{ color: "#0284c7", fontWeight: 700 }}>Action Required:</span>
             <span className="badge-pill danger" style={{ fontSize: "9px" }}>Review</span>
           </div>
         </div>
