@@ -44,6 +44,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [svgPolys, setSvgPolys] = useState<AnyObj[]>([]);
+  const [svgGNSS, setSvgGNSS] = useState<AnyObj[]>([]);
   const [hoveredParcel, setHoveredParcel] = useState<AnyObj | null>(null);
 
   // Initialize MapLibre
@@ -174,7 +175,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       });
 
       setSvgPolys(projected);
-      (window as any).__projectedGNSS = projectedGNSS;
+      setSvgGNSS(projectedGNSS);
     };
 
     map.on("load", () => {
@@ -336,6 +337,31 @@ export const DemoMap: React.FC<DemoMapProps> = ({
             </g>
           );
         })}
+
+        {/* 7. GNSS Survey Control Points (Purple Pins) */}
+        {showGNSS &&
+          svgGNSS.map((pt) => (
+            <g key={pt.id} style={{ pointerEvents: "none" }}>
+              <circle cx={pt.x} cy={pt.y} r="7" fill="#8b5cf6" stroke="#ffffff" strokeWidth="2.5" />
+              <text
+                x={pt.x}
+                y={pt.y - 10}
+                textAnchor="middle"
+                fill="#8b5cf6"
+                fontSize="11px"
+                fontWeight="800"
+                style={{
+                  paintOrder: "stroke",
+                  stroke: "#ffffff",
+                  strokeWidth: "3px",
+                  strokeLinejoin: "round",
+                  userSelect: "none",
+                }}
+              >
+                {pt.name}
+              </text>
+            </g>
+          ))}
       </svg>
 
       {/* Floating Legend */}
