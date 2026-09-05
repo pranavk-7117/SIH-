@@ -8,7 +8,9 @@ type AnyObj = Record<string, any>;
 interface ReviewDecisionViewProps {
   selectedParcelId: string;
   data: AnyObj;
-  onNavigate: (screen: Screen) => void;
+  onNavigate?: (screen: Screen) => void;
+  selectedCase?: any;
+  onSelectParcel?: (id: string) => void;
   onSubmitDecision: (decision: string, notes: string, parcelId: string) => void;
 }
 
@@ -27,7 +29,7 @@ export const ReviewDecisionView: React.FC<ReviewDecisionViewProps> = ({
     onSubmitDecision(decision, notes, selectedParcelId || "parcel-101");
     setSubmitted(true);
     setTimeout(() => {
-      onNavigate("audit");
+      onNavigate?.("audit");
     }, 1200);
   };
 
@@ -223,3 +225,4 @@ export const ReviewDecisionView: React.FC<ReviewDecisionViewProps> = ({
     </div>
   );
 };
+

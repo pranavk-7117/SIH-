@@ -7,10 +7,11 @@ type AnyObj = Record<string, any>;
 
 interface AIExtractionViewProps {
   data: AnyObj;
-  onNavigate: (screen: Screen) => void;
+  onNavigate?: (screen: Screen) => void;
+  onContinue?: () => void;
 }
 
-export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavigate }) => {
+export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavigate, onContinue }) => {
   return (
     <div className="page-container">
       {/* Breadcrumb */}
@@ -84,7 +85,7 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
             <button
               className="btn-emerald"
               style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => onNavigate("graph")}
+              onClick={() => (onContinue ? onContinue() : onNavigate?.("graph"))}
             >
               <span>Build Evidence Graph</span>
               <ArrowRight size={14} />
@@ -154,3 +155,4 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
     </div>
   );
 };
+

@@ -17,12 +17,12 @@ import {
 export type Screen =
   | "dashboard"
   | "upload"
-  | "source"
+  | "sources"
   | "extract"
   | "graph"
   | "harmonize"
   | "discrepancy"
-  | "evidence_card"
+  | "evidence"
   | "review"
   | "audit"
   | "reports"
@@ -37,12 +37,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentScreen, onSelectScreen 
   const navItems: { id: Screen; label: string; icon: React.ReactNode; category?: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: <Home size={17} /> },
     { id: "upload", label: "Upload & Ingest", icon: <UploadCloud size={17} /> },
-    { id: "source", label: "Source Viewer", icon: <Layers size={17} /> },
+    { id: "sources", label: "Source Viewer", icon: <Layers size={17} /> },
     { id: "extract", label: "AI Extraction", icon: <Sparkles size={17} /> },
     { id: "graph", label: "Evidence Graph", icon: <GitFork size={17} /> },
     { id: "harmonize", label: "Harmonization", icon: <Map size={17} /> },
     { id: "discrepancy", label: "Discrepancy Map", icon: <ShieldCheck size={17} /> },
-    { id: "evidence_card", label: "Evidence Cards", icon: <BarChart3 size={17} /> },
+    { id: "evidence", label: "Evidence Cards", icon: <BarChart3 size={17} /> },
     { id: "review", label: "Reviews & Decision", icon: <ClipboardCheck size={17} /> },
     { id: "audit", label: "Audit Trail", icon: <FileText size={17} /> },
     { id: "settings", label: "Settings", icon: <Settings size={17} /> },

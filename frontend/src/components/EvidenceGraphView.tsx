@@ -6,10 +6,13 @@ import { Screen } from "./Sidebar";
 type AnyObj = Record<string, any>;
 
 interface EvidenceGraphViewProps {
-  graph: AnyObj;
-  selectedParcelId: string;
-  onSelectParcel: (id: string) => void;
-  onNavigate: (screen: Screen) => void;
+  graph?: AnyObj;
+  data?: AnyObj;
+  graphData?: AnyObj | null;
+  selectedParcelId?: string;
+  onSelectParcel?: (id: string) => void;
+  onNavigate?: (screen: Screen) => void;
+  onContinue?: () => void;
 }
 
 const nodeColorMap: Record<string, string> = {
@@ -20,11 +23,15 @@ const nodeColorMap: Record<string, string> = {
 };
 
 export const EvidenceGraphView: React.FC<EvidenceGraphViewProps> = ({
-  graph,
+  graph: graphProp,
+  data,
+  graphData,
   selectedParcelId,
   onSelectParcel,
   onNavigate,
+  onContinue,
 }) => {
+  const graph = graphData || data?.graph || graphProp || { nodes: [], links: [] };
   const [selectedNode, setSelectedNode] = useState<AnyObj>(() => {
     return (
       graph.nodes.find((n: AnyObj) => n.id === selectedParcelId) ||
@@ -44,7 +51,7 @@ export const EvidenceGraphView: React.FC<EvidenceGraphViewProps> = ({
   const handleNodeClick = (node: AnyObj) => {
     setSelectedNode(node);
     if (node.id.startsWith("parcel-")) {
-      onSelectParcel(node.id);
+      onSelectParcel?.(node.id);
     }
   };
 
@@ -238,7 +245,7 @@ export const EvidenceGraphView: React.FC<EvidenceGraphViewProps> = ({
             <button
               className="btn-emerald"
               style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => onNavigate("harmonize")}
+              onClick={() => (onContinue ? onContinue() : onNavigate?.("harmonize"))}
             >
               <span>Harmonize Sources</span>
               <ArrowRight size={14} />

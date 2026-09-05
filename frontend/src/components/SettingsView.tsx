@@ -1,16 +1,55 @@
 import React, { useState } from "react";
 import { Settings, Sliders, ShieldCheck, Database, Save } from "lucide-react";
 
-export const SettingsView: React.FC = () => {
-  const [authorityCadastral, setAuthorityCadastral] = useState(0.95);
-  const [authorityDrone, setAuthorityDrone] = useState(0.72);
-  const [authorityGNSS, setAuthorityGNSS] = useState(0.85);
-  const [authorityMunicipal, setAuthorityMunicipal] = useState(0.68);
-  const [dndThreshold, setDndThreshold] = useState(62);
+interface AuthorityWeights {
+  cadastral: number;
+  drone: number;
+  gnss: number;
+  municipal: number;
+}
+
+interface SettingsViewProps {
+  authorityWeights?: AuthorityWeights;
+  dndThreshold?: number;
+  registrationModel?: "affine" | "tps";
+  onWeightsChange?: (weights: AuthorityWeights) => void;
+  onThresholdChange?: (v: number) => void;
+  onModelChange?: (m: "affine" | "tps") => void;
+  onApply?: () => void;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({
+  authorityWeights,
+  dndThreshold: dndThresholdProp,
+  registrationModel: registrationModelProp,
+  onWeightsChange,
+  onThresholdChange,
+  onModelChange,
+  onApply,
+}) => {
+  const [authorityCadastral, setAuthorityCadastral] = useState(authorityWeights?.cadastral ?? 0.95);
+  const [authorityDrone, setAuthorityDrone] = useState(authorityWeights?.drone ?? 0.72);
+  const [authorityGNSS, setAuthorityGNSS] = useState(authorityWeights?.gnss ?? 0.85);
+  const [authorityMunicipal, setAuthorityMunicipal] = useState(authorityWeights?.municipal ?? 0.68);
+  const [dndThreshold, setDndThreshold] = useState(dndThresholdProp ?? 62);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
     setSaved(true);
+    if (onWeightsChange) {
+      onWeightsChange({
+        cadastral: authorityCadastral,
+        drone: authorityDrone,
+        gnss: authorityGNSS,
+        municipal: authorityMunicipal,
+      });
+    }
+    if (onThresholdChange) {
+      onThresholdChange(dndThreshold);
+    }
+    if (onApply) {
+      onApply();
+    }
     setTimeout(() => setSaved(false), 2500);
   };
 

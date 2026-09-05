@@ -9,7 +9,8 @@ interface DiscrepancyMapViewProps {
   data: AnyObj;
   selectedParcelId: string;
   onSelectParcel: (id: string) => void;
-  onNavigate: (screen: Screen) => void;
+  onNavigate?: (screen: Screen) => void;
+  onReview?: (id: string) => void;
 }
 
 export const DiscrepancyMapView: React.FC<DiscrepancyMapViewProps> = ({
@@ -17,6 +18,7 @@ export const DiscrepancyMapView: React.FC<DiscrepancyMapViewProps> = ({
   selectedParcelId,
   onSelectParcel,
   onNavigate,
+  onReview,
 }) => {
   const [filterConflict, setFilterConflict] = useState("all");
   const [filterConfidence, setFilterConfidence] = useState("all");
@@ -140,7 +142,8 @@ export const DiscrepancyMapView: React.FC<DiscrepancyMapViewProps> = ({
             selectedParcelId={selectedParcelId}
             onSelectParcel={(pid) => {
               onSelectParcel(pid);
-              onNavigate("evidence_card");
+              if (onReview) onReview(pid);
+              else onNavigate?.("evidence");
             }}
           />
         </div>
@@ -191,7 +194,8 @@ export const DiscrepancyMapView: React.FC<DiscrepancyMapViewProps> = ({
                 className={`parcel-selection-btn ${selectedParcelId === p.parcel_id ? "active" : ""}`}
                 onClick={() => {
                   onSelectParcel(p.parcel_id);
-                  onNavigate("evidence_card");
+                  if (onReview) onReview(p.parcel_id);
+                  else onNavigate?.("evidence");
                 }}
               >
                 <b>Parcel {p.parcel_num || p.parcel_id.replace("parcel-", "")}</b>
@@ -206,7 +210,7 @@ export const DiscrepancyMapView: React.FC<DiscrepancyMapViewProps> = ({
             <button
               className="btn-emerald"
               style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => onNavigate("review")}
+              onClick={() => onNavigate?.("review")}
             >
               <span>View Priority Review List</span>
               <ArrowRight size={14} />
@@ -217,3 +221,4 @@ export const DiscrepancyMapView: React.FC<DiscrepancyMapViewProps> = ({
     </div>
   );
 };
+

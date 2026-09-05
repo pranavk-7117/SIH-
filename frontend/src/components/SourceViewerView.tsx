@@ -7,10 +7,11 @@ type AnyObj = Record<string, any>;
 
 interface SourceViewerViewProps {
   data: AnyObj;
-  onNavigate: (screen: Screen) => void;
+  onNavigate?: (screen: Screen) => void;
+  onContinue?: () => void;
 }
 
-export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, onNavigate }) => {
+export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, onNavigate, onContinue }) => {
   const [viewMode, setViewMode] = useState<"grid" | "unified">("grid");
   const [opacityCadastral, setOpacityCadastral] = useState(60);
   const [opacityDrone, setOpacityDrone] = useState(70);
@@ -230,7 +231,7 @@ export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, onNavi
 
       {/* Bottom Action */}
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button className="btn-emerald" onClick={() => onNavigate("extract")}>
+        <button className="btn-emerald" onClick={() => (onContinue ? onContinue() : onNavigate?.("extract"))}>
           <span>Proceed to AI Boundary Extraction</span>
           <ArrowRight size={14} />
         </button>
@@ -238,3 +239,4 @@ export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, onNavi
     </div>
   );
 };
+

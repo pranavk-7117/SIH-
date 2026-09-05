@@ -7,12 +7,36 @@ type AnyObj = Record<string, any>;
 
 interface HarmonizationViewProps {
   data: AnyObj;
-  onNavigate: (screen: Screen) => void;
+  onNavigate?: (screen: Screen) => void;
+  harmonizeResult?: any;
+  isComputing?: boolean;
+  model?: string;
+  onModelChange?: (m: any) => void;
+  onRunHarmonize?: () => void;
+  onContinue?: () => void;
 }
 
-export const HarmonizationView: React.FC<HarmonizationViewProps> = ({ data, onNavigate }) => {
+export const HarmonizationView: React.FC<HarmonizationViewProps> = ({
+  data,
+  onNavigate,
+  onContinue,
+  harmonizeResult,
+  isComputing,
+  model = "tps",
+  onModelChange,
+  onRunHarmonize,
+}) => {
   const [activeTab, setActiveTab] = useState<"matching" | "registration" | "topology" | "fusion" | "scoring">("registration");
   const [viewAlignmentState, setViewAlignmentState] = useState<"after" | "before" | "split">("after");
+
+  const meta = harmonizeResult || data.harmonize_meta || {
+    model,
+    rmse: 0.82,
+    mean_residual: 1.24,
+    max_residual: 3.67,
+    inlier_ratio: 92,
+    control_points_used: 32,
+  };
 
   return (
     <div className="page-container">
@@ -99,19 +123,19 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({ data, onNa
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>RMSE:</span>
-              <b style={{ color: "#10b981" }}>0.82 m</b>
+              <b style={{ color: "#10b981" }}>{meta.rmse} m</b>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>Mean Residual:</span>
-              <b style={{ color: "#fff" }}>1.24 m</b>
+              <b style={{ color: "#0f172a" }}>{meta.mean_residual} m</b>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>Max Residual:</span>
-              <b style={{ color: "#f59e0b" }}>3.67 m</b>
+              <b style={{ color: "#f59e0b" }}>{meta.max_residual} m</b>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>Inlier Ratio:</span>
-              <b style={{ color: "#10b981" }}>92%</b>
+              <b style={{ color: "#10b981" }}>{meta.inlier_ratio}%</b>
             </div>
           </div>
         </div>
@@ -157,21 +181,36 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({ data, onNa
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "7px", fontSize: "11.5px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#94a3b8" }}>
               <span>Transform Model:</span>
-              <b style={{ color: "#38bdf8" }}>TPS (Thin Plate Spline)</b>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button
+                  className={meta.model === "affine" ? "btn-emerald" : "btn-outline"}
+                  style={{ padding: "2px 8px", fontSize: "10px" }}
+                  onClick={() => onModelChange?.("affine")}
+                >
+                  Affine
+                </button>
+                <button
+                  className={meta.model === "tps" ? "btn-emerald" : "btn-outline"}
+                  style={{ padding: "2px 8px", fontSize: "10px" }}
+                  onClick={() => onModelChange?.("tps")}
+                >
+                  TPS Spline
+                </button>
+              </div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>Control Points Used:</span>
-              <b style={{ color: "#fff" }}>48</b>
+              <b style={{ color: "#0f172a" }}>{meta.control_points_used}</b>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>Mean Displacement:</span>
-              <b style={{ color: "#fff" }}>1.24 m</b>
+              <b style={{ color: "#0f172a" }}>{meta.mean_residual} m</b>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
               <span>Max Displacement:</span>
-              <b style={{ color: "#f59e0b" }}>3.67 m</b>
+              <b style={{ color: "#f59e0b" }}>{meta.max_residual} m</b>
             </div>
           </div>
 
@@ -201,7 +240,7 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({ data, onNa
             <button
               className="btn-emerald"
               style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => onNavigate("discrepancy")}
+              onClick={() => (onContinue ? onContinue() : onNavigate?.("discrepancy"))}
             >
               <span>View Discrepancy Map</span>
               <ArrowRight size={14} />
@@ -212,3 +251,4 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({ data, onNa
     </div>
   );
 };
+

@@ -79,7 +79,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
             compact={false}
             onSelectParcel={(pid) => {
               onSelectParcel(pid);
-              onNavigate("evidence_card");
+              onNavigate("evidence");
             }}
           />
 

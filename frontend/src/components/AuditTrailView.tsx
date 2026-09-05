@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Download, Search, FileText, CheckCircle2, ShieldCheck, Database } from "lucide-react";
 
 export interface AuditEntry {
@@ -13,6 +13,7 @@ export interface AuditEntry {
 interface AuditTrailViewProps {
   auditLog: AuditEntry[];
   onExport: () => void;
+  harmonizeMeta?: any;
 }
 
 export const AuditTrailView: React.FC<AuditTrailViewProps> = ({ auditLog, onExport }) => {
@@ -132,3 +133,4 @@ export const AuditTrailView: React.FC<AuditTrailViewProps> = ({ auditLog, onExpo
     </div>
   );
 };
+

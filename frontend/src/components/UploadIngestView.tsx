@@ -3,15 +3,19 @@ import { FileText, Camera, Navigation, Building2, FolderArchive, CheckCircle2, U
 import { Screen } from "./Sidebar";
 
 interface UploadIngestViewProps {
-  onNavigate: (screen: Screen) => void;
-  provenance: Record<string, any>;
-  onTriggerNormalize: () => void;
+  onNavigate?: (screen: Screen) => void;
+  provenance?: Record<string, any>;
+  onTriggerNormalize?: () => void;
+  onNormalize?: () => void;
+  onContinue?: () => void;
 }
 
 export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
   onNavigate,
-  provenance,
+  provenance = { area: "Kharadi Sector 12, Pune" },
   onTriggerNormalize,
+  onNormalize,
+  onContinue,
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [fileNames, setFileNames] = useState({
@@ -30,7 +34,8 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
 
   const handleNormalize = () => {
     setNormalized(true);
-    onTriggerNormalize();
+    if (onNormalize) onNormalize();
+    else if (onTriggerNormalize) onTriggerNormalize();
   };
 
   return (
@@ -234,7 +239,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
           <button className="btn-outline" onClick={handleNormalize}>
             {normalized ? "✓ Sources Normalized" : "Normalize All Sources"}
           </button>
-          <button className="btn-emerald" onClick={() => onNavigate("source")}>
+          <button className="btn-emerald" onClick={() => (onContinue ? onContinue() : onNavigate?.("sources"))}>
             <span>Next: Source Details</span>
             <ArrowRight size={14} />
           </button>

@@ -7,13 +7,18 @@ type AnyObj = Record<string, any>;
 interface EvidenceCardViewProps {
   selectedParcelId: string;
   data: AnyObj;
-  onNavigate: (screen: Screen) => void;
+  onNavigate?: (screen: Screen) => void;
+  selectedCase?: any;
+  onSelectParcel?: (id: string) => void;
+  onGoToReview?: () => void;
 }
 
 export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
   selectedParcelId,
   data,
+  selectedCase,
   onNavigate,
+  onGoToReview,
 }) => {
   const parcelNum = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
   const residual = (data.residuals || []).find((r: AnyObj) => r.parcel_id === selectedParcelId) || {
@@ -61,7 +66,7 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
           </div>
 
           <div style={{ marginTop: "auto", display: "flex", gap: "10px" }}>
-            <button className="btn-emerald" style={{ flex: 1, justifyContent: "center" }} onClick={() => onNavigate("review")}>
+            <button className="btn-emerald" style={{ flex: 1, justifyContent: "center" }} onClick={() => (onGoToReview ? onGoToReview() : onNavigate?.("review"))}>
               <span>Review Now</span>
               <ArrowRight size={14} />
             </button>
@@ -164,3 +169,4 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
     </div>
   );
 };
+
