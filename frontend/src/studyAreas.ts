@@ -1,4 +1,4 @@
-﻿import type { FeatureCollection, Feature, Geometry } from "geojson";
+import type { FeatureCollection, Feature, Geometry } from "geojson";
 export type { FeatureCollection };
 
 // Local alias so existing FeatureCollection references work
@@ -297,8 +297,8 @@ export const STUDY_AREAS: Record<string, StudyArea> = {
     "pcmc_hinjawadi",
     "Hinjawadi Phase 3 IT Corridor",
     "Pimpri-Chinchwad (PCMC)",
-    18.5912,
-    73.7180,
+    18.5935,
+    73.7365,
     6,
     4,
     301,

@@ -43,6 +43,10 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const dataRef = useRef<AnyObj>(data);
+  dataRef.current = data;
+  const updateOverlayRef = useRef<() => void>(() => {});
+
   const [svgPolys, setSvgPolys] = useState<AnyObj[]>([]);
   const [svgRoads, setSvgRoads] = useState<AnyObj[]>([]);
   const [svgGNSS, setSvgGNSS] = useState<AnyObj[]>([]);
@@ -94,14 +98,15 @@ export const DemoMap: React.FC<DemoMapProps> = ({
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     const updateSvgOverlay = () => {
-      if (!map || !data || !data.cadastral) return;
+      const currentData = dataRef.current;
+      if (!map || !currentData || !currentData.cadastral) return;
 
-      const parcels = data.cadastral.features || [];
-      const harmonized = data.harmonized?.features || [];
-      const buildings = data.buildings?.features || [];
-      const residuals = data.residuals || [];
-      const controls = data.control?.features || [];
-      const roads = data.municipal?.features || [];
+      const parcels = currentData.cadastral.features || [];
+      const harmonized = currentData.harmonized?.features || [];
+      const buildings = currentData.buildings?.features || [];
+      const residuals = currentData.residuals || [];
+      const controls = currentData.control?.features || [];
+      const roads = currentData.municipal?.features || [];
 
       // Project cadastral & drone polygons
       const projected = parcels.map((p: AnyObj, idx: number) => {
@@ -196,6 +201,8 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       setSvgRoads(projectedRoads);
     };
 
+    updateOverlayRef.current = updateSvgOverlay;
+
     map.on("load", () => {
       map.resize();
       updateSvgOverlay();
@@ -262,6 +269,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           ],
           { padding: compact ? 30 : 60, duration: 350 }
         );
+        updateOverlayRef.current();
         return;
       }
     }
@@ -277,7 +285,13 @@ export const DemoMap: React.FC<DemoMapProps> = ({
     } else if (data.center) {
       map.flyTo({ center: data.center, zoom: compact ? 17.0 : 17.6, duration: 350 });
     }
-  }, [data.id, data.bounds, singleParcelFocus, compact]);
+
+    updateOverlayRef.current();
+    const t = setTimeout(() => {
+      updateOverlayRef.current();
+    }, 380);
+    return () => clearTimeout(t);
+  }, [data.id, data.bounds, data.residuals, data.harmonized, singleParcelFocus, compact]);
 
   const activeParcelNumber = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
 
