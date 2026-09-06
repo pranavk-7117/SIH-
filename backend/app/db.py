@@ -89,6 +89,18 @@ def init_db() -> None:
     );
     """)
 
+    # SQLite R-Tree Spatial Index for fast candidate spatial filtering (PS-26013 Part B)
+    try:
+        cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS parcel_rtree USING rtree(
+            id,              -- Integer primary key
+            min_x, max_x,    -- Minimum and maximum longitude
+            min_y, max_y     -- Minimum and maximum latitude
+        );
+        """)
+    except Exception as e:
+        print(f"Notice: R-Tree virtual table initialization: {e}")
+
     # Check and alter tables if columns are missing from earlier migration
     cursor.execute("PRAGMA table_info(review_decisions)")
     rd_cols = [c[1] for c in cursor.fetchall()]
@@ -274,6 +286,45 @@ def verify_audit_chain() -> dict[str, Any]:
         stored = row["row_hash"]
         if stored and stored != expected:
             return {"chain_valid": False, "tampered_at": row["id"], "total_entries": len(rows)}
-        prev_hash = stored or expected
-
+        prev_hash = stored
     return {"chain_valid": True, "tampered_at": None, "total_entries": len(rows)}
+
+
+def index_features_rtree(features: list[dict[str, Any]]) -> None:
+    """Populate SQLite R-Tree with bounding boxes of features for sub-millisecond spatial queries."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM parcel_rtree")
+        for idx, feat in enumerate(features):
+            geom = feat.get("geometry", {})
+            coords = geom.get("coordinates", [])
+            if geom.get("type") == "Polygon" and coords:
+                ring = coords[0]
+                lons = [p[0] for p in ring]
+                lats = [p[1] for p in ring]
+                cursor.execute(
+                    "INSERT OR REPLACE INTO parcel_rtree (id, min_x, max_x, min_y, max_y) VALUES (?, ?, ?, ?, ?)",
+                    (idx, min(lons), max(lons), min(lats), max(lats))
+                )
+        conn.commit()
+    except Exception as e:
+        print(f"Notice: R-Tree indexing exception: {e}")
+    finally:
+        conn.close()
+
+
+def query_candidates_rtree(min_x: float, max_x: float, min_y: float, max_y: float) -> list[int]:
+    """Query SQLite R-Tree for candidate feature indices within the spatial bounding box."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT id FROM parcel_rtree WHERE min_x <= ? AND max_x >= ? AND min_y <= ? AND max_y >= ?",
+            (max_x, min_x, max_y, min_y)
+        )
+        return [row[0] for row in cursor.fetchall()]
+    except Exception as e:
+        return []
+    finally:
+        conn.close()

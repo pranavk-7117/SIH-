@@ -1,0 +1,85 @@
+{
+  "pune_kharadi": {
+    "center": [
+      73.7745,
+      18.5615
+    ],
+    "base_elevation_m": 562.0,
+    "points": [
+      {
+        "lat": 18.5604,
+        "lon": 73.7731,
+        "elevation_m": 560.4
+      },
+      {
+        "lat": 18.5612,
+        "lon": 73.7742,
+        "elevation_m": 563.1
+      },
+      {
+        "lat": 18.562,
+        "lon": 73.7753,
+        "elevation_m": 566.8
+      },
+      {
+        "lat": 18.5628,
+        "lon": 73.7765,
+        "elevation_m": 571.2
+      }
+    ],
+    "mean_slope_pct": 5.4,
+    "max_slope_pct": 14.2
+  },
+  "pmrda_wagholi": {
+    "center": [
+      73.9825,
+      18.582
+    ],
+    "base_elevation_m": 578.0,
+    "points": [
+      {
+        "lat": 18.581,
+        "lon": 73.9815,
+        "elevation_m": 576.2
+      },
+      {
+        "lat": 18.582,
+        "lon": 73.9825,
+        "elevation_m": 579.5
+      },
+      {
+        "lat": 18.583,
+        "lon": 73.9835,
+        "elevation_m": 584.1
+      }
+    ],
+    "mean_slope_pct": 6.8,
+    "max_slope_pct": 16.5
+  },
+  "pcmc_hinjawadi": {
+    "center": [
+      73.7375,
+      18.5945
+    ],
+    "base_elevation_m": 585.0,
+    "points": [
+      {
+        "lat": 18.5935,
+        "lon": 73.7365,
+        "elevation_m": 583.0
+      },
+      {
+        "lat": 18.5945,
+        "lon": 73.7375,
+        "elevation_m": 586.4
+      },
+      {
+        "lat": 18.5955,
+        "lon": 73.7385,
+        "elevation_m": 591.0
+      }
+    ],
+    "mean_slope_pct": 7.2,
+    "max_slope_pct": 18.1
+  }
+}

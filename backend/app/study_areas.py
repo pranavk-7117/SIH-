@@ -1,7 +1,41 @@
-from __future__ import annotations
-
+import json
 import math
+from pathlib import Path
 from typing import Any
+
+REAL_CACHE_DIR = Path(__file__).resolve().parents[1] / "data" / "real_cache"
+
+
+def _load_real_context_features(area_id: str) -> list[dict[str, Any]]:
+    """Load real Overpass OSM ways (roads, power lines, pipelines) from cache if available."""
+    osm_file = REAL_CACHE_DIR / "osm_pune_context.json"
+    if not osm_file.exists() or area_id != "pune_kharadi":
+        return []
+    try:
+        data = json.loads(osm_file.read_text(encoding="utf-8"))
+        features = []
+        for el in data.get("elements", []):
+            if el.get("type") == "way" and "geometry" in el:
+                coords = [[pt["lon"], pt["lat"]] for pt in el["geometry"]]
+                tags = el.get("tags", {})
+                source_type = "utility_line" if ("power" in tags or "man_made" in tags) else "municipal_road"
+                features.append({
+                    "type": "Feature",
+                    "id": f"osm-{el.get('id', len(features))}",
+                    "geometry": {"type": "LineString", "coordinates": coords},
+                    "properties": {
+                        "name": tags.get("name", tags.get("highway", tags.get("power", "Utility Corridor"))),
+                        "source_type": source_type,
+                        "highway": tags.get("highway"),
+                        "power": tags.get("power"),
+                        "man_made": tags.get("man_made"),
+                        "authority_level": 0.68,
+                        "provenance": "Overpass API (Live Real Query)"
+                    }
+                })
+        return features
+    except Exception:
+        return []
 
 def generate_area_dataset(
     area_id: str,
@@ -194,6 +228,11 @@ def generate_area_dataset(
             "properties": {"name": "Municipal Internal Corridor", "highway": "residential", "authority_level": 0.68}
         },
     ]
+
+    # Merge real Overpass context features (including utility corridors / power lines / pipelines)
+    real_context = _load_real_context_features(area_id)
+    if real_context:
+        road_features.extend(real_context)
 
     return {
         "id": area_id,

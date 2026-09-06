@@ -66,20 +66,29 @@ export const App: React.FC = () => {
   const [registrationModel, setRegistrationModel] = useState<"affine" | "tps">("tps");
   const [authorityWeights, setAuthorityWeights] = useState<AuthorityWeights>(DEFAULT_WEIGHTS);
   const [dndThreshold, setDndThreshold] = useState<number>(62);
+  const [customLayers, setCustomLayers] = useState<{
+    cadastral?: any;
+    buildings?: any;
+    control?: any;
+    municipal?: any;
+    utilities?: any;
+  }>({});
 
   const activeArea = STUDY_AREAS[activeAreaId];
 
   // ── Live Harmonization ─────────────────────────────────────────────────
-  const runHarmonization = useCallback(async () => {
+  const runHarmonization = useCallback(async (overrides?: { customLayers?: typeof customLayers }) => {
     if (!activeArea) return;
     setIsComputing(true);
     const startTs = Date.now();
+    const activeCustom = overrides?.customLayers || customLayers;
     try {
       const result = await api.runHarmonization({
         areaId: activeAreaId,
         model: registrationModel,
         authorityWeights,
         dndThreshold,
+        customLayers: Object.keys(activeCustom).length > 0 ? activeCustom : undefined,
       });
       setHarmonizeResult(result);
 
@@ -95,7 +104,11 @@ export const App: React.FC = () => {
       );
 
       // Auto-build evidence graph with fresh residuals
-      const g = await api.getEvidenceGraph(activeAreaId, result.residuals);
+      const g = await api.getEvidenceGraph(
+        activeAreaId,
+        result.residuals,
+        Object.keys(activeCustom).length > 0 ? activeCustom : undefined
+      );
       setGraphData(g);
       addAuditEntry(
         makeAuditEntry(
@@ -112,7 +125,7 @@ export const App: React.FC = () => {
     } finally {
       setIsComputing(false);
     }
-  }, [activeAreaId, registrationModel, authorityWeights, dndThreshold]);
+  }, [activeAreaId, registrationModel, authorityWeights, dndThreshold, customLayers]);
 
   // Run on mount and when area/model/weights change
   useEffect(() => {
@@ -209,9 +222,30 @@ export const App: React.FC = () => {
     showToast("All 4 sources normalized to EPSG:4326 (WGS84). Ready to harmonize.");
   };
 
+  const handleUploadData = (layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities", geojson: any, meta: any) => {
+    const updatedCustom = {
+      ...customLayers,
+      [layerType]: geojson,
+    };
+    setCustomLayers(updatedCustom);
+    addAuditEntry(
+      makeAuditEntry(
+        `Custom ${layerType.toUpperCase()} Ingested`,
+        `User uploaded ${meta?.filename || layerType}: ${meta?.features || meta?.feature_count || meta?.points_parsed || "valid"} features parsed and activated in session.`,
+        "upload"
+      )
+    );
+    showToast(`✓ Ingested custom ${layerType} dataset — updating session and re-harmonizing...`);
+    runHarmonization({ customLayers: updatedCustom });
+  };
+
   // Build data bundle for views from live results
   const liveData = {
     ...activeArea,
+    cadastral: customLayers.cadastral || activeArea?.cadastral,
+    buildings: customLayers.buildings || activeArea?.buildings,
+    control: customLayers.control || activeArea?.control,
+    municipal: customLayers.municipal || activeArea?.municipal,
     residuals: harmonizeResult?.residuals || [],
     harmonized: harmonizeResult?.harmonized || { type: "FeatureCollection", features: [] },
     harmonize_meta: harmonizeResult
@@ -260,6 +294,8 @@ export const App: React.FC = () => {
           {currentScreen === "upload" && (
             <UploadIngestView
               onNormalize={handleNormalizeTrigger}
+              onUploadData={handleUploadData}
+              onNavigate={setCurrentScreen}
               onContinue={() => setCurrentScreen("sources")}
             />
           )}
@@ -299,6 +335,7 @@ export const App: React.FC = () => {
               data={liveData}
               selectedParcelId={selectedParcelId}
               onSelectParcel={(id) => { setSelectedParcelId(id); }}
+              onNavigate={setCurrentScreen}
               onReview={(id) => { setSelectedParcelId(id); setCurrentScreen("evidence"); }}
             />
           )}
@@ -308,6 +345,7 @@ export const App: React.FC = () => {
               selectedCase={selectedCase || null}
               selectedParcelId={selectedParcelId}
               onSelectParcel={(id) => setSelectedParcelId(id)}
+              onNavigate={setCurrentScreen}
               onGoToReview={() => setCurrentScreen("review")}
             />
           )}
