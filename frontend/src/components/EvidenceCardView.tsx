@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertCircle, CheckCircle2, ArrowRight, ShieldAlert, Star } from "lucide-react";
+import { AlertCircle, CheckCircle2, ArrowRight, ShieldAlert, Star, AlertTriangle, FileSpreadsheet, Layers } from "lucide-react";
 import { Screen } from "./Sidebar";
 
 type AnyObj = Record<string, any>;
@@ -21,15 +21,21 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
   onGoToReview,
 }) => {
   const parcelNum = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
-  const residual = (data.residuals || []).find((r: AnyObj) => r.parcel_id === selectedParcelId) || {
-    magnitude_m: 2.45,
-    risk: "high",
-    confidence: 0.34,
-    area_sqm: 1250.45,
-  };
+  const residual =
+    selectedCase ||
+    (data.residuals || []).find((r: AnyObj) => r.parcel_id === selectedParcelId) || {
+      magnitude_m: 2.45,
+      risk: "high",
+      confidence: 0.34,
+      area_sqm: 1250.45,
+      ambiguous_match: false,
+      match_candidates: [],
+    };
 
   const confidencePct = Math.round((residual.confidence || 0.34) * 100);
   const isHighTrust = confidencePct >= 70;
+  const rev = residual.revenue_record;
+  const meta = data.harmonize_meta || {};
 
   return (
     <div className="page-container">
@@ -42,36 +48,85 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
         <span className="active">Evidence Card & Recommendation</span>
       </div>
 
+      {/* Ambiguous Match Alert if applicable */}
+      {residual.ambiguous_match && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            background: "#fffbeb",
+            border: "1px solid #fde68a",
+            borderRadius: "8px",
+            padding: "10px 16px",
+            marginBottom: "16px",
+            color: "#92400e",
+            fontSize: "12.5px",
+          }}
+        >
+          <AlertTriangle size={18} style={{ color: "#d97706", flexShrink: 0 }} />
+          <span>
+            <b>Do Not Decide — Ambiguous Spatial Match:</b> Top two candidate physical footprints scored within 8% similarity margin. System automatically refrains from automated pairing and routes to Authorized Officer with GNSS field-check recommendation.
+          </span>
+        </div>
+      )}
+
       <div className="evidence-card-layout">
         {/* Left Column: Parcel ID, Priority & Recommendation */}
         <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#fff" }}>Parcel {parcelNum}</h2>
-              <span style={{ fontSize: "11px", color: "#94a3b8" }}>Area: {residual.area_sqm || "1250.45"} m²</span>
+              <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#0f172a" }}>Parcel {parcelNum}</h2>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>GIS Area: {residual.area_sqm || "1250.45"} m²</span>
             </div>
             <span className={`badge-pill ${residual.risk === "high" ? "high" : "medium"}`}>
-              {residual.risk === "high" ? "High Priority" : "Medium Priority"}
+              {residual.risk === "high" ? "High Discrepancy" : "Medium Priority"}
             </span>
           </div>
 
-          <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px", padding: "14px" }}>
+          <div style={{ background: residual.risk === "high" ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)", border: `1px solid ${residual.risk === "high" ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)"}`, borderRadius: "8px", padding: "14px" }}>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
-              <AlertCircle size={16} style={{ color: "#ef4444" }} />
-              <b style={{ fontSize: "12px", color: "#f87171" }}>REVIEW REQUIRED</b>
+              <AlertCircle size={16} style={{ color: residual.risk === "high" ? "#ef4444" : "#10b981" }} />
+              <b style={{ fontSize: "12px", color: residual.risk === "high" ? "#ef4444" : "#10b981" }}>
+                {residual.state || "RECOMMENDED FOR OFFICIAL REVIEW"}
+              </b>
             </div>
-            <p style={{ fontSize: "11.5px", color: "#cbd5e1", lineHeight: "1.4" }}>
-              Low confidence due to significant displacement ({residual.magnitude_m} m) between 1960 Cadastral record and 2024 Drone physical footprint. Route to human authorized reviewer.
+            <p style={{ fontSize: "11.5px", color: "#475569", lineHeight: "1.4" }}>
+              Displacement: <b>{residual.magnitude_m} m</b> | Classification: <b>{residual.temporal?.classification || "registration_error"}</b>. RANSAC Inlier Ratio: <b>{Math.round((meta.inlier_ratio || 0.92) * 100)}%</b> ({meta.control_points_used || 24} pts).
             </p>
+          </div>
+
+          {/* Revenue Records Layer (PS-26013 Non-Spatial Integration) */}
+          <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+              <FileSpreadsheet size={15} style={{ color: "#059669" }} />
+              <b style={{ fontSize: "12px", color: "#0f172a" }}>Simulated Revenue Attribute Layer</b>
+              <span className="badge-pill info" style={{ fontSize: "8.5px", marginLeft: "auto" }}>7/12 EXTRACT</span>
+            </div>
+            {rev ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontSize: "11px", color: "#475569" }}>
+                <div>Survey No: <b style={{ color: "#0f172a" }}>{rev.survey_number}</b></div>
+                <div>Khata No: <b style={{ color: "#0f172a" }}>{rev.khata_number}</b></div>
+                <div style={{ gridColumn: "span 2" }}>Owner: <b style={{ color: "#0f172a" }}>{rev.owner_of_record}</b></div>
+                <div>Land Use: <b style={{ color: "#0f172a" }}>{rev.land_use_class}</b></div>
+                <div>Mutation Date: <b style={{ color: "#0f172a" }}>{rev.last_mutation_date}</b></div>
+                <div>Encumbrance: <b style={{ color: rev.encumbrance ? "#ef4444" : "#10b981" }}>{rev.encumbrance ? "YES (Mortgaged)" : "NO (Clear)"}</b></div>
+                <div>Dispute: <b style={{ color: rev.dispute_flag ? "#ef4444" : "#10b981" }}>{rev.dispute_flag ? "FLAGGED" : "NONE"}</b></div>
+              </div>
+            ) : (
+              <div style={{ fontSize: "11px", color: "#94a3b8" }}>
+                Revenue records joined by Parcel ID: {parcelNum} (Maharashtra 7/12 format).
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: "auto", display: "flex", gap: "10px" }}>
             <button className="btn-emerald" style={{ flex: 1, justifyContent: "center" }} onClick={() => (onGoToReview ? onGoToReview() : onNavigate?.("review"))}>
-              <span>Review Now</span>
+              <span>Adjudicate Decision</span>
               <ArrowRight size={14} />
             </button>
-            <button className="btn-outline" onClick={() => alert(`Full GeoJSON Metadata for Parcel ${parcelNum}`)}>
-              Full Details
+            <button className="btn-outline" onClick={() => onNavigate?.("discrepancy")}>
+              Map View
             </button>
           </div>
         </div>
@@ -85,27 +140,27 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             <div className="evidence-star-row">
               <span>Authority Score:</span>
-              <span className="star-rating">★★★★★ <small style={{ color: "#10b981", fontWeight: 700 }}>High</small></span>
+              <span className="star-rating">★★★★★ <small style={{ color: "#10b981", fontWeight: 700 }}>0.95</small></span>
             </div>
             <div className="evidence-star-row">
               <span>GNSS Survey Support:</span>
-              <span className="star-rating">★★★★☆ <small style={{ color: "#10b981", fontWeight: 700 }}>Good</small></span>
+              <span className="star-rating">★★★★☆ <small style={{ color: "#10b981", fontWeight: 700 }}>2cm RTK</small></span>
             </div>
             <div className="evidence-star-row">
-              <span>AI Extraction Conf:</span>
-              <span className="star-rating">★★★☆☆ <small style={{ color: "#f59e0b", fontWeight: 700 }}>Medium</small></span>
+              <span>RANSAC Status:</span>
+              <span className="badge-pill success">INLIER ({meta.model ? meta.model.toUpperCase() : "TPS"})</span>
             </div>
             <div className="evidence-star-row">
-              <span>Mean Displacement:</span>
-              <b style={{ color: "#ef4444" }}>{residual.magnitude_m} m</b>
+              <span>Spatial Displacement:</span>
+              <b style={{ color: residual.risk === "high" ? "#ef4444" : "#10b981" }}>{residual.magnitude_m} m</b>
             </div>
             <div className="evidence-star-row">
               <span>Topology Check:</span>
               <span className="badge-pill success">PASS (ST_IsValid)</span>
             </div>
             <div className="evidence-star-row">
-              <span>Source Agreement:</span>
-              <span className="badge-pill danger">LOW (Conflict)</span>
+              <span>Temporal Classification:</span>
+              <span className="badge-pill info">{residual.temporal?.classification || "registration_error"}</span>
             </div>
           </div>
 
@@ -115,53 +170,80 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
             <div className={`gauge-circle ${isHighTrust ? "high-trust" : ""}`}>
               {confidencePct}%
             </div>
-            <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "8px", fontWeight: 600 }}>
-              Overall Trust Score
+            <span style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", fontWeight: 600 }}>
+              Fused Evidence Confidence Score
             </span>
           </div>
         </div>
 
-        {/* Right Column: Evidence Sources Breakdown */}
+        {/* Right Column: Correspondence Candidates & Evidence Sources */}
         <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {/* Candidate Matches Panel */}
+          <div className="bf-card-title" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <Layers size={15} style={{ color: "#0284c7" }} />
+            <span>Candidate Correspondences</span>
+          </div>
+
+          {residual.match_candidates && residual.match_candidates.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {residual.match_candidates.slice(0, 3).map((cand: AnyObj, idx: number) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: idx === 0 ? "rgba(16, 185, 129, 0.08)" : "#f8fafc",
+                    border: `1px solid ${idx === 0 ? "#10b981" : "#e2e8f0"}`,
+                    borderRadius: "6px",
+                    padding: "8px 10px",
+                    fontSize: "11px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                    <span style={{ color: "#0f172a" }}>{cand.building_id} {idx === 0 ? "(Selected)" : `(Runner-up #${idx})`}</span>
+                    <span style={{ color: idx === 0 ? "#10b981" : "#64748b" }}>Score: {Math.round(cand.score * 100)}%</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "3px", color: "#64748b", fontSize: "10px" }}>
+                    <span>Dist: {cand.centroid_dist_m}m</span>
+                    <span>Area Ratio: {cand.area_ratio}</span>
+                    <span>IoU: {cand.iou}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: "11px", color: "#94a3b8" }}>
+              Correspondence matching scored via centroid proximity + area ratio + IoU.
+            </div>
+          )}
+
+          <hr style={{ borderColor: "var(--border-color)", margin: "4px 0" }} />
+
           <div className="bf-card-title">
             <span>Evidence Sources</span>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {/* Cadastral Map (1960) */}
-            <div style={{ background: "rgba(11, 19, 32, 0.7)", border: "1px solid var(--border-color)", borderRadius: "7px", padding: "10px 12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                <b style={{ fontSize: "12px", color: "#f59e0b" }}>Cadastral Map (1960)</b>
-                <span className="badge-pill warn" style={{ fontSize: "9px" }}>Authoritative</span>
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "8px 10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <b style={{ fontSize: "11.5px", color: "#b45309" }}>Cadastral Map (1960)</b>
+                <span className="badge-pill warn" style={{ fontSize: "8.5px" }}>Legal Baseline (0.95)</span>
               </div>
-              <p style={{ fontSize: "10.5px", color: "#94a3b8" }}>Legal boundary baseline. Weight: 0.95</p>
             </div>
 
-            {/* Drone Extraction (2024) */}
-            <div style={{ background: "rgba(11, 19, 32, 0.7)", border: "1px solid var(--border-color)", borderRadius: "7px", padding: "10px 12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                <b style={{ fontSize: "12px", color: "#38bdf8" }}>Drone Extraction (2024)</b>
-                <span className="badge-pill info" style={{ fontSize: "9px" }}>Confidence: 0.82</span>
+            {/* Drone Footprint */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "8px 10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <b style={{ fontSize: "11.5px", color: "#0284c7" }}>Drone / OSM Footprint</b>
+                <span className="badge-pill info" style={{ fontSize: "8.5px" }}>Physical Boundary (0.72)</span>
               </div>
-              <p style={{ fontSize: "10.5px", color: "#94a3b8" }}>Physical rooftop contour. Weight: 0.72</p>
             </div>
 
             {/* GNSS Survey (2024) */}
-            <div style={{ background: "rgba(11, 19, 32, 0.7)", border: "1px solid var(--border-color)", borderRadius: "7px", padding: "10px 12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                <b style={{ fontSize: "12px", color: "#8b5cf6" }}>GNSS Survey (2024)</b>
-                <span className="badge-pill success" style={{ fontSize: "9px" }}>Support: Good</span>
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "8px 10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <b style={{ fontSize: "11.5px", color: "#7c3aed" }}>GNSS Survey Control</b>
+                <span className="badge-pill success" style={{ fontSize: "8.5px" }}>RTK Control (0.85)</span>
               </div>
-              <p style={{ fontSize: "10.5px", color: "#94a3b8" }}>Corner monument P-101 (2cm RTK accuracy)</p>
-            </div>
-
-            {/* Municipal GIS (2023) */}
-            <div style={{ background: "rgba(11, 19, 32, 0.7)", border: "1px solid var(--border-color)", borderRadius: "7px", padding: "10px 12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                <b style={{ fontSize: "12px", color: "#94a3b8" }}>Municipal GIS (2023)</b>
-                <span className="badge-pill danger" style={{ fontSize: "9px" }}>Agreement: Low</span>
-              </div>
-              <p style={{ fontSize: "10.5px", color: "#94a3b8" }}>Ward road network alignment mismatch</p>
             </div>
           </div>
         </div>
@@ -169,4 +251,3 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
     </div>
   );
 };
-

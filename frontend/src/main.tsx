@@ -54,7 +54,7 @@ export const App: React.FC = () => {
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([
     makeAuditEntry("Sources Ingested", "Ingested 4 files (Cadastral SHP, Drone GeoTIFF, GNSS CSV, Municipal GPKG).", "upload"),
     makeAuditEntry("CRS Normalized", "Normalized all layers from EPSG:32643 (UTM Zone 43N) → EPSG:4326 (WGS84).", "process"),
-    makeAuditEntry("AI Boundary Extraction", "Extracted physical parcel contours via SegFormer-B0 (Avg Conf: 89%).", "process"),
+    makeAuditEntry("Boundary Observations Ingested", "Physical boundary observations ingested from validated footprint datasets.", "process"),
     makeAuditEntry("Evidence Graph Built", "Constructed multi-relational spatial graph: 59 nodes, 58 edges.", "process"),
   ]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -221,7 +221,12 @@ export const App: React.FC = () => {
           mean_residual: harmonizeResult.mean_residual,
           max_residual: harmonizeResult.max_residual,
           inlier_ratio: harmonizeResult.inlier_ratio,
+          ransac_inlier_count: harmonizeResult.ransac_inlier_count,
+          ransac_iterations: harmonizeResult.ransac_iterations,
+          total_correspondences: harmonizeResult.total_correspondences,
           control_points_used: harmonizeResult.control_points_used,
+          dnd_count: harmonizeResult.dnd_count,
+          auto_resolved_count: harmonizeResult.auto_resolved_count,
         }
       : null,
   };

@@ -2,22 +2,24 @@ from __future__ import annotations
 
 import json
 import math
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app.study_areas import STUDY_AREAS
-from app.db import init_db, insert_review, get_all_reviews, get_all_audits, get_db_stats
+from app.db import init_db, insert_review, get_all_reviews, get_all_audits, get_db_stats, verify_audit_chain
+from app.revenue_data import get_revenue_records, get_revenue_record
+from app.attribute_mapping import map_to_department, detect_schema, DEPARTMENT_SCHEMAS
 
-# Initialize SQLite database schema and seed records
 init_db()
 
-app = FastAPI(title="BHUMI-FUSE Live Geospatial API", version="1.0.0")
+app = FastAPI(title="BHUMI-FUSE Live Geospatial API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,7 +32,6 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 AUDIT: list[dict[str, Any]] = []
 VERSIONS: dict[str, list[dict[str, Any]]] = {}
 
-# Try to import shapely & networkx for C-accelerated spatial operations
 try:
     from shapely.geometry import Polygon, mapping, shape
     from shapely.validation import explain_validity
@@ -40,7 +41,7 @@ except ImportError:
     HAS_GEOSPATIAL_LIBS = False
 
 
-# Pydantic Schemas
+# ── Pydantic Schemas ────────────────────────────────────────────────────────
 class AuthorityWeights(BaseModel):
     cadastral: float = 0.95
     drone: float = 0.72
@@ -65,11 +66,15 @@ class ReviewRequest(BaseModel):
     decision: Literal["accept", "reject", "adjust", "escalate", "dnd"]
     reviewer: str = "Land Records Officer (AO)"
     note: str = ""
+    ai_recommendation: str = ""
+    area_id: str = "pune_kharadi"
 
 
-# Computational Geometry Helpers
-def poly_centroid(ring: list[list[float]]) -> tuple[float, float]:
-    pts = ring[:-1] if ring[0] == ring[-1] else ring
+# ── Geometry Helpers ────────────────────────────────────────────────────────
+def poly_centroid(ring: list) -> tuple[float, float]:
+    pts = ring[:-1] if (len(ring) > 1 and ring[0] == ring[-1]) else ring
+    if not pts:
+        return 0.0, 0.0
     cx = sum(p[0] for p in pts) / len(pts)
     cy = sum(p[1] for p in pts) / len(pts)
     return cx, cy
@@ -84,81 +89,346 @@ def geo_distance_m(p1: tuple[float, float], p2: tuple[float, float]) -> float:
     return math.hypot(dx, dy)
 
 
-def solve_affine_2d(src_pts: list[tuple[float, float]], tgt_pts: list[tuple[float, float]]):
-    """Least-squares 2D Affine Transformation [a, b, tx; c, d, ty]"""
-    n = min(len(src_pts), len(tgt_pts))
-    if n < 3:
-        dx = sum(t[0] - s[0] for s, t in zip(src_pts, tgt_pts)) / n
-        dy = sum(t[1] - s[1] for s, t in zip(src_pts, tgt_pts)) / n
-        return lambda p: (p[0] + dx, p[1] + dy)
+def poly_area_m2(ring: list, lon_scale: float, lat_scale: float) -> float:
+    """Shoelace formula in metre-space."""
+    pts = ring[:-1] if (len(ring) > 1 and ring[0] == ring[-1]) else ring
+    n = len(pts)
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        x1 = pts[i][0] * lon_scale
+        y1 = pts[i][1] * lat_scale
+        x2 = pts[j][0] * lon_scale
+        y2 = pts[j][1] * lat_scale
+        area += x1 * y2 - x2 * y1
+    return abs(area) / 2.0
 
-    sx2 = sum(s[0]**2 for s in src_pts)
-    sy2 = sum(s[1]**2 for s in src_pts)
-    sxy = sum(s[0] * s[1] for s in src_pts)
-    sx = sum(s[0] for s in src_pts)
-    sy = sum(s[1] for s in src_pts)
 
-    s_x_xp = sum(s[0] * t[0] for s, t in zip(src_pts, tgt_pts))
-    s_y_xp = sum(s[1] * t[0] for s, t in zip(src_pts, tgt_pts))
-    s_xp = sum(t[0] for t in tgt_pts)
+def bbox_iou(ring1: list, ring2: list) -> float:
+    """Bounding-box IoU — fast approximation for correspondence scoring."""
+    lons1 = [p[0] for p in ring1]; lats1 = [p[1] for p in ring1]
+    lons2 = [p[0] for p in ring2]; lats2 = [p[1] for p in ring2]
+    ax0, ay0, ax1, ay1 = min(lons1), min(lats1), max(lons1), max(lats1)
+    bx0, by0, bx1, by1 = min(lons2), min(lats2), max(lons2), max(lats2)
+    ix0, iy0 = max(ax0, bx0), max(ay0, by0)
+    ix1, iy1 = min(ax1, bx1), min(ay1, by1)
+    if ix1 <= ix0 or iy1 <= iy0:
+        return 0.0
+    inter = (ix1 - ix0) * (iy1 - iy0)
+    area_a = (ax1 - ax0) * (ay1 - ay0)
+    area_b = (bx1 - bx0) * (by1 - by0)
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
 
-    s_x_yp = sum(s[0] * t[1] for s, t in zip(src_pts, tgt_pts))
-    s_y_yp = sum(s[1] * t[1] for s, t in zip(src_pts, tgt_pts))
-    s_yp = sum(t[1] for t in tgt_pts)
 
-    def det3(a1, a2, a3, b1, b2, b3, c1, c2, c3):
-        return a1 * (b2 * c3 - b3 * c2) - a2 * (b1 * c3 - b3 * c1) + a3 * (b1 * c2 - b2 * c1)
+def shapely_iou(ring1: list, ring2: list) -> float:
+    """Exact IoU using Shapely — preferred when available."""
+    if not HAS_GEOSPATIAL_LIBS:
+        return bbox_iou(ring1, ring2)
+    try:
+        p1 = Polygon(ring1)
+        p2 = Polygon(ring2)
+        if not p1.is_valid:
+            p1 = p1.buffer(0)
+        if not p2.is_valid:
+            p2 = p2.buffer(0)
+        inter = p1.intersection(p2).area
+        union = p1.union(p2).area
+        return inter / union if union > 0 else 0.0
+    except Exception:
+        return bbox_iou(ring1, ring2)
 
-    D = det3(sx2, sxy, sx, sxy, sy2, sy, sx, sy, n)
-    if abs(D) < 1e-15:
-        dx = (s_xp - sx) / n
-        dy = (s_yp - sy) / n
-        return lambda p: (p[0] + dx, p[1] + dy)
 
-    a = det3(s_x_xp, sxy, sx, s_y_xp, sy2, sy, s_xp, sy, n) / D
-    b = det3(sx2, s_x_xp, sx, sxy, s_y_xp, sy, sx, s_xp, n) / D
-    tx = det3(sx2, sxy, s_x_xp, sxy, sy2, s_y_xp, sx, sy, s_xp) / D
+# ── P1: Real Candidate Correspondence Engine ─────────────────────────────────
+def build_correspondence_set(
+    cad_features: list, drone_features: list,
+    lon_scale: float, lat_scale: float,
+    search_radius_m: float = 150.0,
+    dnd_threshold: float = 0.45,
+    ambiguity_margin: float = 0.08,
+) -> list[dict[str, Any]]:
+    """
+    Real candidate correspondence engine.
+    For each cadastral parcel, find candidate drone footprints within search_radius_m,
+    score each by centroid distance + area ratio + IoU, rank and select best match.
+    Flags ambiguous matches (low score OR top-2 too close) for Do-Not-Decide routing.
+    """
+    correspondences = []
 
-    c = det3(s_x_yp, sxy, sx, s_y_yp, sy2, sy, s_yp, sy, n) / D
-    d = det3(sx2, s_x_yp, sx, sxy, s_y_yp, sy, sx, s_yp, n) / D
-    ty = det3(sx2, sxy, s_x_yp, sxy, sy2, s_y_yp, sx, sy, s_yp) / D
+    for i, cad in enumerate(cad_features):
+        cad_ring = cad["geometry"]["coordinates"][0]
+        cad_cen = poly_centroid(cad_ring)
+        cad_area = poly_area_m2(cad_ring, lon_scale, lat_scale)
 
-    return lambda p: (a * p[0] + b * p[1] + tx, c * p[0] + d * p[1] + ty)
+        candidates = []
+        for j, drone in enumerate(drone_features):
+            drone_ring = drone["geometry"]["coordinates"][0]
+            drone_cen = poly_centroid(drone_ring)
+            dist_m = geo_distance_m(cad_cen, drone_cen)
+
+            if dist_m > search_radius_m:
+                continue
+
+            drone_area = poly_area_m2(drone_ring, lon_scale, lat_scale)
+
+            # Score components
+            centroid_score = 1.0 / (1.0 + dist_m / 30.0)  # normalized by typical plot width
+            area_ratio = (min(cad_area, drone_area) / max(cad_area, drone_area)
+                          if max(cad_area, drone_area) > 0 else 0.0)
+            iou = shapely_iou(cad_ring, drone_ring)
+
+            combined = 0.40 * centroid_score + 0.35 * area_ratio + 0.25 * iou
+
+            candidates.append({
+                "drone_idx": j,
+                "building_id": drone["properties"].get("id", f"building-{j}"),
+                "score": round(combined, 4),
+                "centroid_dist_m": round(dist_m, 2),
+                "area_ratio": round(area_ratio, 4),
+                "iou": round(iou, 4),
+            })
+
+        # Sort by score descending
+        candidates.sort(key=lambda c: c["score"], reverse=True)
+
+        # Fallback: if nothing within radius, use index-matched (always has a fallback)
+        if not candidates:
+            fallback_idx = i % len(drone_features)
+            fallback_ring = drone_features[fallback_idx]["geometry"]["coordinates"][0]
+            fallback_cen = poly_centroid(fallback_ring)
+            dist_m = geo_distance_m(cad_cen, fallback_cen)
+            candidates = [{
+                "drone_idx": fallback_idx,
+                "building_id": drone_features[fallback_idx]["properties"].get("id", f"building-{fallback_idx}"),
+                "score": 0.1,
+                "centroid_dist_m": round(dist_m, 2),
+                "area_ratio": 0.1,
+                "iou": 0.0,
+            }]
+
+        top = candidates[0]
+        # Ambiguous: low score OR top-2 within margin
+        ambiguous = top["score"] < dnd_threshold
+        if len(candidates) >= 2:
+            ambiguous = ambiguous or (candidates[0]["score"] - candidates[1]["score"] < ambiguity_margin)
+
+        correspondences.append({
+            "cad_idx": i,
+            "drone_idx": top["drone_idx"],
+            "match_confidence": top["score"],
+            "ambiguous_match": ambiguous,
+            "top_candidates": candidates[:3],  # expose runner-ups for Evidence Card
+        })
+
+    return correspondences
+
+
+# ── P2: Real RANSAC ──────────────────────────────────────────────────────────
+def ransac_filter(
+    src_pts: list[tuple[float, float]],
+    tgt_pts: list[tuple[float, float]],
+    n_iter: int = 150,
+    min_sample: int = 3,
+    inlier_threshold_m: float = 2.0,
+    rng_seed: int = 42,
+) -> dict[str, Any]:
+    """
+    Real RANSAC for registration:
+    1. Random sample min_sample pairs
+    2. Fit affine on sample
+    3. Count inliers (residual < threshold)
+    4. Keep best model
+    5. Refit on full inlier set
+    Returns inlier indices, inlier_ratio, and iteration count.
+    """
+    n = len(src_pts)
+    if n < min_sample:
+        return {"inlier_indices": list(range(n)), "inlier_ratio": 1.0, "inlier_count": n, "iterations": 0}
+
+    rng = random.Random(rng_seed)
+    best_inliers: list[int] = []
+    best_count = 0
+
+    def fit_affine_simple(s_pts, t_pts):
+        """Minimal affine fit for RANSAC sampling."""
+        n_s = len(s_pts)
+        cx_s = sum(p[0] for p in s_pts) / n_s
+        cy_s = sum(p[1] for p in s_pts) / n_s
+        cx_t = sum(p[0] for p in t_pts) / n_s
+        cy_t = sum(p[1] for p in t_pts) / n_s
+        sU2, sV2, sUV, sU_Up, sV_Up, sU_Vp, sV_Vp = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        for si, ti in zip(s_pts, t_pts):
+            u, v = si[0] - cx_s, si[1] - cy_s
+            up, vp = ti[0] - cx_t, ti[1] - cy_t
+            sU2 += u*u; sV2 += v*v; sUV += u*v
+            sU_Up += u*up; sV_Up += v*up
+            sU_Vp += u*vp; sV_Vp += v*vp
+        D = sU2*sV2 - sUV*sUV
+        if abs(D) < 1e-20:
+            dx, dy = cx_t - cx_s, cy_t - cy_s
+            return lambda p: (p[0]+dx, p[1]+dy)
+        a = (sV2*sU_Up - sUV*sV_Up)/D; b = (sU2*sV_Up - sUV*sU_Up)/D
+        c = (sV2*sU_Vp - sUV*sV_Vp)/D; d = (sU2*sV_Vp - sUV*sU_Vp)/D
+        return lambda p: (cx_t + a*(p[0]-cx_s) + b*(p[1]-cy_s),
+                          cy_t + c*(p[0]-cx_s) + d*(p[1]-cy_s))
+
+    for _ in range(n_iter):
+        sample_idx = rng.sample(range(n), min_sample)
+        s_sample = [src_pts[k] for k in sample_idx]
+        t_sample = [tgt_pts[k] for k in sample_idx]
+        try:
+            fn = fit_affine_simple(s_sample, t_sample)
+        except Exception:
+            continue
+        inliers = []
+        for k in range(n):
+            tx, ty = fn(src_pts[k])
+            err = math.hypot(tx - tgt_pts[k][0], ty - tgt_pts[k][1])
+            if err < inlier_threshold_m:
+                inliers.append(k)
+        if len(inliers) > best_count:
+            best_count = len(inliers)
+            best_inliers = inliers
+
+    if len(best_inliers) < min_sample:
+        best_inliers = list(range(n))  # degenerate fallback: keep all
+
+    return {
+        "inlier_indices": best_inliers,
+        "inlier_ratio": round(len(best_inliers) / n, 4),
+        "inlier_count": len(best_inliers),
+        "total_correspondences": n,
+        "iterations": n_iter,
+    }
+
+
+# ── P3: True Thin Plate Spline ───────────────────────────────────────────────
+def _tps_kernel(r: float) -> float:
+    """TPS kernel: U(r) = r^2 * log(r), with U(0) = 0."""
+    if r < 1e-10:
+        return 0.0
+    return r * r * math.log(r)
 
 
 def solve_tps_2d(src_pts: list[tuple[float, float]], tgt_pts: list[tuple[float, float]]):
-    """Thin Plate Spline (TPS) with local radial basis function deformation"""
-    affine = solve_affine_2d(src_pts, tgt_pts)
-    n = min(len(src_pts), tgt_pts.__len__())
-    if n < 4:
-        return affine
+    """
+    True Thin Plate Spline using the standard TPS kernel U(r) = r^2 * log(r).
+    Solves the (n+3) x (n+3) linear system with affine constraints.
+    Falls back to affine if n < 3.
+    """
+    n = min(len(src_pts), len(tgt_pts))
+    if n < 3:
+        return solve_affine_2d(src_pts[:n], tgt_pts[:n])
 
-    residuals = [(tgt_pts[i][0] - affine(src_pts[i])[0], tgt_pts[i][1] - affine(src_pts[i])[1]) for i in range(n)]
+    # Build kernel matrix K (n x n) and affine block P (n x 3)
+    K = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            r = math.hypot(src_pts[i][0] - src_pts[j][0], src_pts[i][1] - src_pts[j][1])
+            K[i][j] = _tps_kernel(r)
 
-    def tps_fn(p: tuple[float, float]) -> tuple[float, float]:
-        base = affine(p)
-        wx, wy, total_w = 0.0, 0.0, 0.0
+    # System matrix L = [[K, P], [P^T, 0]]
+    # Size: (n+3) x (n+3)
+    size = n + 3
+    L = [[0.0] * size for _ in range(size)]
+    for i in range(n):
+        for j in range(n):
+            L[i][j] = K[i][j]
+        # P block (right side)
+        L[i][n] = 1.0
+        L[i][n+1] = src_pts[i][0]
+        L[i][n+2] = src_pts[i][1]
+        # P^T block (bottom)
+        L[n][i] = 1.0
+        L[n+1][i] = src_pts[i][0]
+        L[n+2][i] = src_pts[i][1]
+
+    # RHS for x-coordinates and y-coordinates
+    bx = [tgt_pts[i][0] for i in range(n)] + [0.0, 0.0, 0.0]
+    by = [tgt_pts[i][1] for i in range(n)] + [0.0, 0.0, 0.0]
+
+    def gauss_solve(A: list[list[float]], b: list[float]) -> list[float] | None:
+        """Gaussian elimination with partial pivoting."""
+        n_ = len(b)
+        M = [row[:] + [b[r]] for r, row in enumerate(A)]
+        for col in range(n_):
+            # Pivot
+            pivot = max(range(col, n_), key=lambda r: abs(M[r][col]))
+            if abs(M[pivot][col]) < 1e-12:
+                return None
+            M[col], M[pivot] = M[pivot], M[col]
+            for row in range(col+1, n_):
+                factor = M[row][col] / M[col][col]
+                for k in range(col, n_+1):
+                    M[row][k] -= factor * M[col][k]
+        x = [0.0] * n_
+        for row in range(n_-1, -1, -1):
+            x[row] = M[row][n_]
+            for k in range(row+1, n_):
+                x[row] -= M[row][k] * x[k]
+            x[row] /= M[row][row]
+        return x
+
+    wx = gauss_solve(L, bx)
+    wy = gauss_solve(L, by)
+
+    if wx is None or wy is None:
+        return solve_affine_2d(src_pts, tgt_pts)
+
+    def tps_eval(p: tuple[float, float]) -> tuple[float, float]:
+        x_out = wx[n] + wx[n+1] * p[0] + wx[n+2] * p[1]
+        y_out = wy[n] + wy[n+1] * p[0] + wy[n+2] * p[1]
         for i in range(n):
-            dist = math.hypot(p[0] - src_pts[i][0], p[1] - src_pts[i][1])
-            w = 1.0 / (dist * dist + 1e-6)
-            wx += residuals[i][0] * w
-            wy += residuals[i][1] * w
-            total_w += w
-        if total_w > 0:
-            return (base[0] + (wx / total_w) * 0.85, base[1] + (wy / total_w) * 0.85)
-        return base
+            r = math.hypot(p[0] - src_pts[i][0], p[1] - src_pts[i][1])
+            u = _tps_kernel(r)
+            x_out += wx[i] * u
+            y_out += wy[i] * u
+        return x_out, y_out
 
-    return tps_fn
+    return tps_eval
 
 
-# Endpoints
+def solve_affine_2d(src_pts: list[tuple[float, float]], tgt_pts: list[tuple[float, float]]):
+    """Least-squares 2D Affine Transformation using centroid-normalized coordinates."""
+    n = min(len(src_pts), len(tgt_pts))
+    if n < 2:
+        dx = (tgt_pts[0][0] - src_pts[0][0]) if n == 1 else 0
+        dy = (tgt_pts[0][1] - src_pts[0][1]) if n == 1 else 0
+        return lambda p: (p[0] + dx, p[1] + dy)
+
+    cx_s = sum(p[0] for p in src_pts[:n]) / n
+    cy_s = sum(p[1] for p in src_pts[:n]) / n
+    cx_t = sum(p[0] for p in tgt_pts[:n]) / n
+    cy_t = sum(p[1] for p in tgt_pts[:n]) / n
+
+    sU2, sV2, sUV, sU_Up, sV_Up, sU_Vp, sV_Vp = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    for i in range(n):
+        u = src_pts[i][0] - cx_s; v = src_pts[i][1] - cy_s
+        up = tgt_pts[i][0] - cx_t; vp = tgt_pts[i][1] - cy_t
+        sU2 += u*u; sV2 += v*v; sUV += u*v
+        sU_Up += u*up; sV_Up += v*up
+        sU_Vp += u*vp; sV_Vp += v*vp
+
+    D = sU2*sV2 - sUV*sUV
+    if abs(D) < 1e-22:
+        dx, dy = cx_t - cx_s, cy_t - cy_s
+        return lambda p: (p[0]+dx, p[1]+dy)
+
+    a = (sV2*sU_Up - sUV*sV_Up)/D; b = (sU2*sV_Up - sUV*sU_Up)/D
+    c = (sV2*sU_Vp - sUV*sV_Vp)/D; d = (sU2*sV_Vp - sUV*sU_Vp)/D
+    return lambda p: (cx_t + a*(p[0]-cx_s) + b*(p[1]-cy_s),
+                      cy_t + c*(p[0]-cx_s) + d*(p[1]-cy_s))
+
+
+# ── API Endpoints ────────────────────────────────────────────────────────────
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "service": "BHUMI-FUSE Live Computational Engine",
-        "version": "1.0.0",
-        "geospatial_backend": "active (Shapely + SciPy/NumPy)",
+        "service": "BHUMI-FUSE Live Geospatial Engine",
+        "version": "2.0.0",
+        "geospatial_backend": "active (Shapely + SciPy/NumPy)" if HAS_GEOSPATIAL_LIBS else "active (pure Python fallback)",
+        "capabilities": ["correspondence-engine", "ransac", "true-tps", "topology-correction", "hash-chain-audit"],
     }
 
 
@@ -166,14 +436,9 @@ def health() -> dict[str, Any]:
 def get_study_areas() -> dict[str, Any]:
     return {
         "areas": [
-            {
-                "id": a["id"],
-                "name": a["name"],
-                "city": a["city"],
-                "bounds": a["bounds"],
-                "distortion_type": a["distortion_type"],
-                "provenance": a["provenance"],
-            }
+            {"id": a["id"], "name": a["name"], "city": a["city"],
+             "bounds": a["bounds"], "distortion_type": a["distortion_type"],
+             "provenance": a["provenance"]}
             for a in STUDY_AREAS.values()
         ]
     }
@@ -187,15 +452,18 @@ def get_demo_data(area_id: str = Query("pune_kharadi")) -> dict[str, Any]:
 @app.post("/harmonize")
 def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
     """
-    Live Geometric Registration: Computes true Affine or TPS transformation,
-    calculates real control point residuals, exact RMSE, and directional coherence.
+    Live Geometric Registration:
+    1. Real candidate correspondence engine (centroid + area ratio + IoU scoring)
+    2. Real RANSAC outlier rejection (150 iterations, 3-point minimal sample)
+    3. True TPS or Affine fit on RANSAC inlier set
+    4. Per-parcel residuals + directional coherence change detection
+    5. Dynamic evidence fusion with authority weights
     """
     area = STUDY_AREAS.get(req.area_id, STUDY_AREAS["pune_kharadi"])
     cad_features = area["cadastral"]["features"]
     drone_features = area["buildings"]["features"]
     num_parcels = len(cad_features)
 
-    # 1. Extract Control Points in metre-space for physically meaningful residuals
     area_bounds = area.get("bounds", [73.77, 18.56, 73.78, 18.57])
     MID_LAT = (area_bounds[1] + area_bounds[3]) / 2.0
     LAT_SCALE = 111139.0
@@ -207,36 +475,64 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
     def m_to_deg(mx: float, my: float) -> tuple[float, float]:
         return mx / LON_SCALE, my / LAT_SCALE
 
-    src_pts_m: list[tuple[float, float]] = []
-    tgt_pts_m: list[tuple[float, float]] = []
-    for i, cad in enumerate(cad_features):
-        b = drone_features[i] if i < len(drone_features) else drone_features[0]
-        c_cad = poly_centroid(cad["geometry"]["coordinates"][0])
-        c_drone = poly_centroid(b["geometry"]["coordinates"][0])
-        src_pts_m.append(deg_to_m(*c_cad))
-        tgt_pts_m.append(deg_to_m(*c_drone))
+    # ── P1: Correspondence engine ────────────────────────────────────────────
+    correspondences = build_correspondence_set(
+        cad_features, drone_features, LON_SCALE, LAT_SCALE,
+        search_radius_m=150.0,
+        dnd_threshold=req.dndThreshold / 100.0,
+        ambiguity_margin=0.08,
+    )
 
-    # 2. Fit transformation model in metre-space
-    transform_m = solve_tps_2d(src_pts_m, tgt_pts_m) if req.model == "tps" else solve_affine_2d(src_pts_m, tgt_pts_m)
+    # Build control point pairs from correspondence result
+    all_src_m: list[tuple[float, float]] = []
+    all_tgt_m: list[tuple[float, float]] = []
+    for corr in correspondences:
+        cad = cad_features[corr["cad_idx"]]
+        drone = drone_features[corr["drone_idx"]]
+        c_cad = poly_centroid(cad["geometry"]["coordinates"][0])
+        c_drone = poly_centroid(drone["geometry"]["coordinates"][0])
+        all_src_m.append(deg_to_m(*c_cad))
+        all_tgt_m.append(deg_to_m(*c_drone))
+
+    # ── P2: RANSAC ───────────────────────────────────────────────────────────
+    ransac_result = ransac_filter(
+        all_src_m, all_tgt_m,
+        n_iter=150, min_sample=3,
+        inlier_threshold_m=2.0,
+    )
+    inlier_idx = ransac_result["inlier_indices"]
+    inlier_src = [all_src_m[k] for k in inlier_idx]
+    inlier_tgt = [all_tgt_m[k] for k in inlier_idx]
+
+    # ── P3: True TPS or Affine fit on RANSAC inlier set ─────────────────────
+    if req.model == "tps":
+        transform_m = solve_tps_2d(inlier_src, inlier_tgt)
+        model_label = "True TPS (r²log(r) kernel, RANSAC-filtered)"
+    else:
+        transform_m = solve_affine_2d(inlier_src, inlier_tgt)
+        model_label = "Affine (6-parameter, RANSAC-filtered)"
 
     def transform_fn(lon_lat: tuple[float, float]) -> tuple[float, float]:
         mx, my = deg_to_m(*lon_lat)
         tx, ty = transform_m((mx, my))
         return m_to_deg(tx, ty)
 
-    # 3. Apply transformation & compute quantitative residuals
+    # ── Apply transformation, build residuals ────────────────────────────────
     harmonized_features = []
     residuals = []
     sum_sq_err = 0.0
     max_residual = 0.0
     displacements = []
 
-    for i, cad in enumerate(cad_features):
-        b = drone_features[i] if i < len(drone_features) else drone_features[0]
-        cad_ring = cad["geometry"]["coordinates"][0]
-        drone_ring = b["geometry"]["coordinates"][0]
+    revenue_map = {r["parcel_id"]: r for r in get_revenue_records(req.area_id)}
 
-        # Transform ring vertices
+    for corr in correspondences:
+        i = corr["cad_idx"]
+        cad = cad_features[i]
+        drone = drone_features[corr["drone_idx"]]
+        cad_ring = cad["geometry"]["coordinates"][0]
+        drone_ring = drone["geometry"]["coordinates"][0]
+
         aligned_ring = [list(transform_fn((pt[0], pt[1]))) for pt in cad_ring]
         aligned_ring[-1] = aligned_ring[0]
 
@@ -244,12 +540,9 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
         c_aligned = poly_centroid(aligned_ring)
         c_drone = poly_centroid(drone_ring)
 
-        # Post-alignment residual (how close aligned centroid is to drone centroid)
         post_align_residual_m = geo_distance_m(c_aligned, c_drone)
-        # Pre-alignment displacement (the raw historical-to-physical mismatch)
         orig_dist_m = geo_distance_m(c_cad_orig, c_drone)
 
-        # RMSE tracks post-alignment residuals (quality of registration)
         displacements.append(post_align_residual_m)
         sum_sq_err += post_align_residual_m * post_align_residual_m
         if orig_dist_m > max_residual:
@@ -257,6 +550,8 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
 
         pid = cad["properties"].get("parcel_id", str(101 + i))
         pnum = cad["properties"].get("parcel_number", 101 + i)
+        risk = "high" if orig_dist_m >= 2.5 else ("medium" if orig_dist_m >= 1.0 else "low")
+        heat_color = "#ef4444" if risk == "high" else ("#f59e0b" if risk == "medium" else "#22c55e")
 
         harmonized_features.append({
             "type": "Feature",
@@ -273,14 +568,11 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
             },
         })
 
-        risk = "high" if orig_dist_m >= 2.5 else ("medium" if orig_dist_m >= 1.0 else "low")
-        heat_color = "#ef4444" if risk == "high" else ("#f59e0b" if risk == "medium" else "#22c55e")
-
         residuals.append({
             "case_id": f"case-{pid}",
             "parcel_id": f"parcel-{pid}",
             "parcel_num": pnum,
-            "building_id": f"building-{pid}",
+            "building_id": corr["top_candidates"][0]["building_id"] if corr["top_candidates"] else f"building-{pid}",
             "from": [round(c_cad_orig[0], 8), round(c_cad_orig[1], 8)],
             "to": [round(c_drone[0], 8), round(c_drone[1], 8)],
             "magnitude_m": round(orig_dist_m, 2),
@@ -289,6 +581,12 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
             "confidence": 0.8,
             "area_sqm": cad["properties"].get("area_sqm", 1250.0),
             "heatColor": heat_color,
+            # P1 — Correspondence scores exposed
+            "match_confidence": corr["match_confidence"],
+            "ambiguous_match": corr["ambiguous_match"],
+            "match_candidates": corr["top_candidates"],
+            # Revenue record joined by parcel_id
+            "revenue_record": revenue_map.get(pid),
             "temporal": {
                 "classification": "registration_error",
                 "confidence": 0.85,
@@ -304,67 +602,60 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
             "state": "Recommended for official review",
         })
 
-    # 4. Directional Coherence for Temporal Conflict Classification
+    # ── Directional coherence (Change Detection Engine) ──────────────────────
     for i, r in enumerate(residuals):
         c1 = r["from"]
-        v1x = r["to"][0] - r["from"][0]
-        v1y = r["to"][1] - r["from"][1]
+        v1x = r["to"][0] - r["from"][0]; v1y = r["to"][1] - r["from"][1]
         len1 = math.hypot(v1x, v1y) or 1e-9
-
-        dot_sum = 0.0
-        neighbor_count = 0
+        dot_sum = 0.0; neighbor_count = 0
         for j, other in enumerate(residuals):
             if i == j:
                 continue
-            # Compare in metre-space: 0.005 degrees ≈ 500 m neighbor search radius
-            dist_m = geo_distance_m(
-                (other["from"][0], other["from"][1]),
-                (c1[0], c1[1])
-            )
-            if dist_m < 200:  # 200 m neighbor radius
-                v2x = other["to"][0] - other["from"][0]
-                v2y = other["to"][1] - other["from"][1]
+            dist_m = geo_distance_m((other["from"][0], other["from"][1]), (c1[0], c1[1]))
+            if dist_m < 200:
+                v2x = other["to"][0] - other["from"][0]; v2y = other["to"][1] - other["from"][1]
                 len2 = math.hypot(v2x, v2y) or 1e-9
-                dot_sum += (v1x * v2x + v1y * v2y) / (len1 * len2)
+                dot_sum += (v1x*v2x + v1y*v2y) / (len1*len2)
                 neighbor_count += 1
-
         coherence = dot_sum / neighbor_count if neighbor_count > 0 else 0.85
         r["temporal"]["coherence"] = round(coherence, 2)
 
         if r["magnitude_m"] > 2.6 and coherence > 0.8:
-            r["temporal"]["classification"] = "registration_error"
-            r["temporal"]["confidence"] = 0.88
-            r["temporal"]["explanation"] = "Coherent uniform displacement with adjacent plots; consistent with datum shift."
+            r["temporal"] = {"classification": "registration_error", "confidence": 0.88,
+                              "explanation": "Coherent uniform displacement with adjacent plots; consistent with datum shift.",
+                              "coherence": round(coherence, 2)}
         elif r["magnitude_m"] > 2.0 and coherence < 0.45:
-            r["temporal"]["classification"] = "genuine_change"
-            r["temporal"]["confidence"] = 0.82
-            r["temporal"]["explanation"] = "Localized spatial divergence not shared by neighbors; indicates modern physical expansion."
+            r["temporal"] = {"classification": "genuine_change", "confidence": 0.82,
+                              "explanation": "Localized spatial divergence; indicates modern physical change.",
+                              "coherence": round(coherence, 2)}
         elif r["magnitude_m"] <= 0.8:
-            r["temporal"]["classification"] = "minor_fuzz"
-            r["temporal"]["confidence"] = 0.95
-            r["temporal"]["explanation"] = "Residual within standard GNSS survey tolerance."
+            r["temporal"] = {"classification": "minor_fuzz", "confidence": 0.95,
+                              "explanation": "Residual within standard GNSS survey tolerance.",
+                              "coherence": round(coherence, 2)}
         else:
-            r["temporal"]["classification"] = "needs_review"
-            r["temporal"]["confidence"] = 0.58
-            r["temporal"]["explanation"] = "Evidence below threshold; routes to human officer."
+            r["temporal"] = {"classification": "needs_review", "confidence": 0.58,
+                              "explanation": "Evidence below threshold; routed to human officer.",
+                              "coherence": round(coherence, 2)}
 
-        # Dynamic Evidence Fusion score
+        # Evidence fusion
         w = req.authorityWeights
         total_w = w.cadastral + w.drone + w.gnss + w.municipal
         agreement = max(0.0, 1.0 - r["magnitude_m"] / 6.0)
         penalty = 0.2 if r["temporal"]["classification"] == "needs_review" else 0.0
-
         raw_score = (
-            (w.cadastral * 0.95 + w.drone * 0.72 + w.gnss * 0.85 + w.municipal * 0.68) / total_w * 0.5 +
-            agreement * 0.3 +
-            r["temporal"]["confidence"] * 0.2 -
-            penalty
+            (w.cadastral*0.95 + w.drone*0.72 + w.gnss*0.85 + w.municipal*0.68) / total_w * 0.5
+            + agreement * 0.3
+            + r["temporal"]["confidence"] * 0.2
+            - penalty
         )
         fused_conf = round(max(0.1, min(1.0, raw_score)), 2)
         r["confidence"] = fused_conf
 
-        if fused_conf < (req.dndThreshold / 100.0) or r["temporal"]["classification"] == "needs_review":
+        # Route to DND if ambiguous match OR low confidence
+        if r["ambiguous_match"] or fused_conf < (req.dndThreshold / 100.0) or r["temporal"]["classification"] == "needs_review":
             r["state"] = "Needs Review / Do Not Decide"
+            if r["ambiguous_match"]:
+                r["state"] = "Do Not Decide — Ambiguous Match"
         else:
             r["state"] = "Recommended for official review"
 
@@ -377,15 +668,22 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
 
     rmse = round(math.sqrt(sum_sq_err / (num_parcels or 1)), 2)
     mean_res = round(sum(displacements) / (num_parcels or 1), 2)
-    inlier_ratio = int((len([r for r in residuals if r["magnitude_m"] < 2.0]) / (num_parcels or 1)) * 100)
+    dnd_count = sum(1 for r in residuals if "Do Not Decide" in r["state"])
 
     return {
         "model": req.model,
+        "model_label": model_label,
+        "correspondence_method": "Scored matching: centroid distance + area ratio + Shapely IoU",
         "rmse": rmse,
         "mean_residual": mean_res,
         "max_residual": round(max_residual, 2),
-        "inlier_ratio": inlier_ratio,
-        "control_points_used": len(src_pts_m) + len(area["control"]["features"]),
+        "inlier_ratio": ransac_result["inlier_ratio"],
+        "ransac_inlier_count": ransac_result["inlier_count"],
+        "ransac_iterations": ransac_result["iterations"],
+        "control_points_used": len(inlier_src),
+        "total_correspondences": len(correspondences),
+        "dnd_count": dnd_count,
+        "auto_resolved_count": len(residuals) - dnd_count,
         "residuals": residuals,
         "harmonized": {"type": "FeatureCollection", "features": harmonized_features},
     }
@@ -394,141 +692,185 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
 @app.post("/validate")
 def validate(req: TopologyRequest) -> dict[str, Any]:
     """
-    Live Topology Guard: Runs Shapely/GEOS ST_IsValid checks, polygon self-intersection
-    tests, and pairwise overlap computations.
+    Topology Verification AND Correction (P9):
+    - Detects self-intersections via Shapely ST_IsValid
+    - Auto-corrects with buffer(0) where safe
+    - Reports n_auto_corrected / n_manual_required separately
     """
     features = req.harmonized.get("features", [])
     results = []
+    n_auto_corrected = 0
+    n_manual_required = 0
 
     for i, feat in enumerate(features):
         ring = feat["geometry"]["coordinates"][0]
         pid = feat.get("properties", {}).get("parcel_id", str(101 + i))
+        auto_corrected = False
+        correction_type = None
+        corrected_ring = ring
 
         if HAS_GEOSPATIAL_LIBS:
             try:
                 poly = Polygon(ring)
                 is_valid = poly.is_valid
                 reason = "Valid Geometry (ST_IsValid)" if is_valid else explain_validity(poly)
+
+                if not is_valid:
+                    repaired = poly.buffer(0)
+                    if repaired.is_valid and not repaired.is_empty:
+                        auto_corrected = True
+                        correction_type = "buffer_repair"
+                        n_auto_corrected += 1
+                        try:
+                            corrected_ring = list(mapping(repaired)["coordinates"][0])
+                        except Exception:
+                            pass
+                        reason = f"Auto-corrected via buffer(0) [{explain_validity(poly)}]"
+                    else:
+                        n_manual_required += 1
             except Exception as e:
                 is_valid = False
                 reason = str(e)
+                n_manual_required += 1
         else:
             is_valid = len(ring) >= 4 and ring[0] == ring[-1]
-            reason = "Valid Geometry (ST_IsValid)" if is_valid else "Invalid ring closure"
+            reason = "Valid Geometry" if is_valid else "Invalid ring closure"
+            if not is_valid:
+                n_manual_required += 1
 
         results.append({
             "case_id": f"case-{pid}",
             "parcel_id": f"parcel-{pid}",
-            "status": "pass" if is_valid else "fail",
+            "status": "pass" if (is_valid or auto_corrected) else "fail",
             "validity": reason,
-            "overlap_risk": 0.0 if is_valid else 0.45,
+            "overlap_risk": 0.0 if (is_valid or auto_corrected) else 0.45,
             "overlaps_detected": [],
+            "auto_corrected": auto_corrected,
+            "correction_type": correction_type,
         })
 
-    return {"results": results}
+    return {
+        "results": results,
+        "n_auto_corrected": n_auto_corrected,
+        "n_manual_required": n_manual_required,
+        "n_valid": len([r for r in results if r["status"] == "pass"]),
+        "total": len(results),
+    }
 
 
 @app.get("/graph")
 def graph(area_id: str = Query("pune_kharadi")) -> dict[str, Any]:
-    """
-    Live Spatial Evidence Graph: Builds dynamic multi-relational graph of parcels,
-    boundaries, GNSS survey points, and municipal roads.
-    """
+    """Spatial Evidence Graph with spatially-computed edges."""
     area = STUDY_AREAS.get(area_id, STUDY_AREAS["pune_kharadi"])
     nodes = []
     links = []
 
     # 1. Cadastral Nodes
-    for i, f in enumerate(area["cadastral"]["features"]):
+    cad_features = area["cadastral"]["features"]
+    for i, f in enumerate(cad_features):
         pid = f["properties"].get("parcel_id", str(101 + i))
-        nodes.append({
-            "id": f"parcel-{pid}",
-            "label": f"Parcel {pid}",
-            "source_type": "authoritative_cadastral_simulated",
-            "type_label": "Cadastral Parcel",
-            "source": "Cadastral Map (1960)",
-            "area": f"{f['properties'].get('area_sqm', 1250)} m²",
-            "synthetic": True,
-        })
+        nodes.append({"id": f"parcel-{pid}", "label": f"Parcel {pid}",
+                      "source_type": "authoritative_cadastral_simulated",
+                      "type_label": "Cadastral Parcel", "source": "Cadastral Map (Simulated)",
+                      "area": f"{f['properties'].get('area_sqm', 1250)} m²", "synthetic": True})
 
-    # 2. Drone AI Boundary Nodes & Match Edges
-    for i, f in enumerate(area["buildings"]["features"]):
+    # 2. Drone Boundary Nodes & Match Edges (confidence from correspondence score)
+    drone_features = area["buildings"]["features"]
+    area_bounds = area.get("bounds", [73.77, 18.56, 73.78, 18.57])
+    MID_LAT = (area_bounds[1] + area_bounds[3]) / 2.0
+    LON_SCALE = 111139.0 * math.cos(math.radians(MID_LAT))
+    LAT_SCALE = 111139.0
+
+    correspondences = build_correspondence_set(cad_features, drone_features, LON_SCALE, LAT_SCALE)
+    corr_map = {c["cad_idx"]: c for c in correspondences}
+
+    for i, f in enumerate(drone_features):
         pid = f["properties"].get("parcel_id", str(101 + i))
-        nodes.append({
-            "id": f"boundary-{pid}",
-            "label": f"AI Boundary {pid}",
-            "source_type": "derived_building_footprint_real",
-            "type_label": "AI Boundary",
-            "source": "Drone Extraction (2024)",
-            "confidence": f["properties"].get("confidence", 0.91),
-            "synthetic": False,
-        })
-        links.append({
-            "source": f"parcel-{pid}",
-            "target": f"boundary-{pid}",
-            "relationship": "matches",
-            "confidence": 0.88,
-        })
+        nodes.append({"id": f"boundary-{pid}", "label": f"Boundary Obs. {pid}",
+                      "source_type": "derived_building_footprint_real",
+                      "type_label": "Boundary Observation", "source": "OSM/Footprint (2024)",
+                      "confidence": f["properties"].get("confidence", 0.91), "synthetic": False})
+        corr = corr_map.get(i)
+        match_conf = corr["match_confidence"] if corr else 0.88
+        links.append({"source": f"parcel-{pid}", "target": f"boundary-{pid}",
+                      "relationship": "matches", "confidence": round(match_conf, 3)})
 
-    # 3. GNSS Survey Nodes & Support Edges
+    # 3. GNSS Nodes & Support Edges
     for pt in area["control"]["features"]:
         pid = pt["properties"].get("parcel_id", "101")
-        nodes.append({
-            "id": pt["id"],
-            "label": pt["properties"].get("name", "GNSS Point"),
-            "source_type": "synthetic_control",
-            "type_label": "GNSS Point",
-            "source": "GNSS Survey (2024)",
-            "accuracy": f"{pt['properties'].get('positional_accuracy_m', 0.02)} m",
-            "synthetic": True,
-        })
-        links.append({
-            "source": pt["id"],
-            "target": f"parcel-{pid}",
-            "relationship": "supports",
-            "confidence": 0.98,
-        })
+        nodes.append({"id": pt["id"], "label": pt["properties"].get("name", "GNSS Point"),
+                      "source_type": "synthetic_control", "type_label": "GNSS Point",
+                      "source": "GNSS Survey (2024)",
+                      "accuracy": f"{pt['properties'].get('positional_accuracy_m', 0.02)} m",
+                      "synthetic": True})
+        links.append({"source": pt["id"], "target": f"parcel-{pid}",
+                      "relationship": "supports", "confidence": 0.98})
 
-    # 4. Municipal Road Intersections
-    for idx, r in enumerate(area["municipal"]["features"]):
+    # 4. Municipal Roads — adjacency via centroid proximity
+    for r in area["municipal"]["features"]:
         rid = r["id"]
-        nodes.append({
-            "id": rid,
-            "label": r["properties"].get("name", f"Municipal Road {idx + 1}"),
-            "source_type": "contextual_municipal_real",
-            "type_label": "Municipal Feature",
-            "source": "Municipal GIS (2023)",
-            "synthetic": False,
-        })
-        if nodes:
-            links.append({
-                "source": rid,
-                "target": nodes[idx * 2]["id"],
-                "relationship": "intersects",
-                "confidence": 0.85,
-            })
+        nodes.append({"id": rid, "label": r["properties"].get("name", "Municipal Road"),
+                      "source_type": "contextual_municipal_real", "type_label": "Municipal Feature",
+                      "source": "Municipal GIS (OSM proxy)", "synthetic": False})
+        road_coords = r["geometry"]["coordinates"]
+        road_mid = poly_centroid(road_coords)
+        for i, f in enumerate(cad_features):
+            pid = f["properties"].get("parcel_id", str(101 + i))
+            cen = poly_centroid(f["geometry"]["coordinates"][0])
+            dist = geo_distance_m(road_mid, cen)
+            if dist < 80:
+                links.append({"source": rid, "target": f"parcel-{pid}",
+                               "relationship": "intersects", "confidence": 0.85})
 
-    # 5. Adjacency Edges
+    # 5. Real adjacency edges — parcels within ~60m centroid distance
     cad_nodes = [n for n in nodes if n["source_type"] == "authoritative_cadastral_simulated"]
-    for i in range(len(cad_nodes) - 1):
-        links.append({
-            "source": cad_nodes[i]["id"],
-            "target": cad_nodes[i + 1]["id"],
-            "relationship": "adjacent_to",
-            "confidence": 1.0,
-        })
+    cad_centroids = [
+        poly_centroid(cad_features[i]["geometry"]["coordinates"][0])
+        for i in range(len(cad_features))
+    ]
+    for i in range(len(cad_nodes)):
+        for j in range(i+1, len(cad_nodes)):
+            if i < len(cad_centroids) and j < len(cad_centroids):
+                dist = geo_distance_m(cad_centroids[i], cad_centroids[j])
+                if dist < 60:  # ~60m = adjacent plot
+                    links.append({"source": cad_nodes[i]["id"], "target": cad_nodes[j]["id"],
+                                  "relationship": "adjacent_to", "confidence": 1.0})
 
     return {"nodes": nodes, "links": links}
 
 
 @app.post("/extract")
 def extract(area_id: str = Query("pune_kharadi")) -> dict[str, Any]:
+    """P4 — Boundary Observation Ingestion (not SegFormer)."""
     area = STUDY_AREAS.get(area_id, STUDY_AREAS["pune_kharadi"])
+    features = area["extracted"]["features"]
+    # Compute compactness-based confidence for each boundary
+    confidences = []
+    for feat in features:
+        coords = feat["geometry"].get("coordinates", [])
+        if coords and len(coords) >= 3:
+            n = len(coords)
+            perimeter = sum(
+                math.hypot(coords[(i+1) % n][0] - coords[i][0], coords[(i+1) % n][1] - coords[i][1])
+                for i in range(n)
+            )
+            area_2x = abs(sum(
+                coords[i][0]*coords[(i+1) % n][1] - coords[(i+1) % n][0]*coords[i][1]
+                for i in range(n)
+            ))
+            compactness = (4 * math.pi * area_2x / 2) / (perimeter**2) if perimeter > 0 else 0.5
+            confidences.append(min(1.0, max(0.3, compactness * 1.8)))
+        else:
+            confidences.append(0.75)
+    avg_conf = round(sum(confidences) / len(confidences), 3) if confidences else 0.75
     return {
+        "method": "Boundary Observation Ingestion (OSM/footprint-derived)",
+        "method_note": "Boundary observations sourced from prepared footprint data. Learned image segmentation (SegFormer/SAM) is the next inference layer.",
         "observations": area["extracted"],
-        "features_detected": len(area["extracted"]["features"]) * 2,
-        "boundaries_extracted": len(area["extracted"]["features"]),
-        "avg_confidence": 0.89,
+        "features_detected": len(features) * 2,
+        "boundaries_extracted": len(features),
+        "avg_confidence": avg_conf,
+        "confidence_metric": "polygon compactness (4π·area/perimeter²)",
     }
 
 
@@ -540,14 +882,119 @@ def review(req: ReviewRequest) -> dict[str, Any]:
         decision=req.decision,
         reviewer=req.reviewer,
         note=req.note or "",
+        ai_recommendation=req.ai_recommendation,
+        area_id=req.area_id,
     )
     VERSIONS.setdefault(req.case_id, []).append(record)
     AUDIT.append(record)
     return {
         "stored": True,
         "new_version": record,
-        "immutability": "original legal record untouched; cryptographic versioned entry created in SQLite database",
+        "immutability": "Original legal record untouched; versioned entry appended to tamper-evident hash-chained SQLite ledger.",
+        "ground_truth_recorded": True,
     }
+
+
+@app.get("/revenue/{area_id}")
+def revenue(area_id: str) -> dict[str, Any]:
+    """Simulated Revenue Attribute Layer — Maharashtra 7/12 format."""
+    records = get_revenue_records(area_id)
+    return {
+        "area_id": area_id,
+        "records": records,
+        "count": len(records),
+        "data_label": "illustrative — Simulated Revenue Attribute Layer",
+        "format": "Maharashtra 7/12 Extract (synthetic)",
+    }
+
+
+@app.post("/upload/geojson")
+async def upload_geojson(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Real GeoJSON upload, validation, and summary (P8)."""
+    content = await file.read()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        return JSONResponse(status_code=400, content={"error": f"Invalid JSON: {e}"})
+    if data.get("type") not in ("FeatureCollection", "Feature"):
+        return JSONResponse(status_code=400, content={"error": "Not a valid GeoJSON FeatureCollection or Feature"})
+    features = data.get("features", []) if data["type"] == "FeatureCollection" else [data]
+    valid_count = 0
+    invalid_count = 0
+    all_lons, all_lats = [], []
+    for feat in features:
+        geom = feat.get("geometry", {})
+        coords_flat = []
+        if geom.get("type") == "Polygon":
+            for ring in geom.get("coordinates", []):
+                coords_flat.extend(ring)
+        elif geom.get("type") == "Point":
+            coords_flat = [geom.get("coordinates", [])]
+        if HAS_GEOSPATIAL_LIBS and geom.get("type") == "Polygon":
+            try:
+                poly = Polygon(geom["coordinates"][0])
+                if poly.is_valid and not poly.is_empty:
+                    valid_count += 1
+                else:
+                    invalid_count += 1
+            except Exception:
+                invalid_count += 1
+        else:
+            valid_count += 1
+        for pt in coords_flat:
+            if len(pt) >= 2:
+                all_lons.append(pt[0]); all_lats.append(pt[1])
+    bbox = [min(all_lons), min(all_lats), max(all_lons), max(all_lats)] if all_lons else None
+    return {
+        "filename": file.filename,
+        "features": len(features),
+        "valid": invalid_count == 0,
+        "valid_geometries": valid_count,
+        "invalid_geometries": invalid_count,
+        "bbox": bbox,
+        "crs_detected": data.get("crs", {}).get("properties", {}).get("name", "EPSG:4326 (assumed)"),
+        "message": f"Ingested {len(features)} features. {invalid_count} invalid geometries detected.",
+    }
+
+
+@app.post("/upload/gnss-csv")
+async def upload_gnss_csv(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Real GNSS CSV upload — parses lat/lon/accuracy columns (P8)."""
+    import csv, io
+    content = (await file.read()).decode("utf-8", errors="replace")
+    reader = csv.DictReader(io.StringIO(content))
+    points = []
+    errors = []
+    lat_cols = ["lat", "latitude", "LAT", "Latitude"]
+    lon_cols = ["lon", "lng", "longitude", "LON", "LNG", "Longitude"]
+    acc_cols = ["accuracy", "acc", "accuracy_m", "Accuracy"]
+    for i, row in enumerate(reader):
+        lat_col = next((c for c in lat_cols if c in row), None)
+        lon_col = next((c for c in lon_cols if c in row), None)
+        if not lat_col or not lon_col:
+            errors.append(f"Row {i}: lat/lon columns not found")
+            continue
+        try:
+            lat, lon = float(row[lat_col]), float(row[lon_col])
+            acc = float(row.get(next((c for c in acc_cols if c in row), ""), 0.05) or 0.05)
+            points.append({"type": "Feature", "id": f"gnss-upload-{i}",
+                            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                            "properties": {"lat": lat, "lon": lon, "accuracy_m": acc,
+                                           "row_index": i, "source_type": "uploaded_gnss"}})
+        except (ValueError, KeyError) as e:
+            errors.append(f"Row {i}: {e}")
+    return {
+        "filename": file.filename,
+        "points_parsed": len(points),
+        "errors": errors[:10],
+        "geojson": {"type": "FeatureCollection", "features": points},
+    }
+
+
+@app.get("/audit/verify")
+def audit_verify() -> dict[str, Any]:
+    """Verify the tamper-evident hash chain of the audit log."""
+    return verify_audit_chain()
 
 
 @app.get("/db/reviews")
@@ -563,6 +1010,37 @@ def get_db_audit() -> dict[str, Any]:
 @app.get("/db/stats")
 def get_database_stats() -> dict[str, Any]:
     return get_db_stats()
+
+
+@app.get("/export/department/{dept_id}")
+def export_department(dept_id: str, area_id: str = Query("pune_kharadi")) -> dict[str, Any]:
+    """Inter-departmental data exchange — maps canonical harmonized data to target dept schema (P13)."""
+    if dept_id not in DEPARTMENT_SCHEMAS:
+        return JSONResponse(status_code=404, content={"error": f"Unknown dept_id '{dept_id}'. Valid: {list(DEPARTMENT_SCHEMAS.keys())}"})
+    area = STUDY_AREAS.get(area_id, STUDY_AREAS["pune_kharadi"])
+    revenue_records = {r["parcel_id"]: r for r in get_revenue_records(area_id)}
+    output = []
+    for feat in area["cadastral"]["features"]:
+        pid = feat["properties"].get("parcel_id", "")
+        rev = revenue_records.get(pid, {})
+        canonical = {
+            "parcel_id": pid,
+            "owner_name": rev.get("owner_of_record", ""),
+            "area_sqm": feat["properties"].get("area_sqm", 0),
+            "land_use": rev.get("land_use_class", ""),
+            "survey_number": rev.get("survey_number", ""),
+            "mutation_date": rev.get("last_mutation_date", ""),
+            "encumbrance": rev.get("encumbrance", False),
+        }
+        output.append(map_to_department(canonical, dept_id))
+    return {
+        "dept_id": dept_id,
+        "area_id": area_id,
+        "schema_applied": dept_id,
+        "record_count": len(output),
+        "records": output,
+        "note": "Fields reshaped to target department schema via attribute crosswalk (exact match + Levenshtein fuzzy fallback).",
+    }
 
 
 @app.get("/export", response_model=None)
