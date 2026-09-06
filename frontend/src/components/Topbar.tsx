@@ -81,6 +81,17 @@ export const Topbar: React.FC<TopbarProps> = ({
           ))}
         </select>
 
+        {/* Download Map Dataset Button */}
+        <a
+          href={`/datasets/${activeAreaId}_dataset.geojson`}
+          download={`bhumi_fuse_${activeAreaId}_dataset.geojson`}
+          className="btn-emerald"
+          style={{ textDecoration: "none", padding: "6px 12px", fontSize: "11.5px", display: "flex", alignItems: "center", gap: "5px" }}
+          title={`Download full GeoJSON dataset for ${STUDY_AREAS[activeAreaId]?.name || activeAreaId}`}
+        >
+          <span>📥 Download Map</span>
+        </a>
+
         <button
           className="topbar-icon-btn"
           title="Search records"

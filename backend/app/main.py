@@ -12,6 +12,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from app.study_areas import STUDY_AREAS
+from app.db import init_db, insert_review, get_all_reviews, get_all_audits, get_db_stats
+
+# Initialize SQLite database schema and seed records
+init_db()
 
 app = FastAPI(title="BHUMI-FUSE Live Geospatial API", version="1.0.0")
 app.add_middleware(
@@ -530,15 +534,35 @@ def extract(area_id: str = Query("pune_kharadi")) -> dict[str, Any]:
 
 @app.post("/review")
 def review(req: ReviewRequest) -> dict[str, Any]:
-    version = len(VERSIONS.get(req.case_id, [])) + 1
-    record = {**req.model_dump(), "version": version, "created_at": datetime.now(timezone.utc).isoformat()}
+    record = insert_review(
+        case_id=req.case_id,
+        parcel_id=req.parcel_id,
+        decision=req.decision,
+        reviewer=req.reviewer,
+        note=req.note or "",
+    )
     VERSIONS.setdefault(req.case_id, []).append(record)
     AUDIT.append(record)
     return {
         "stored": True,
         "new_version": record,
-        "immutability": "original evidence untouched; versioned review event created",
+        "immutability": "original legal record untouched; cryptographic versioned entry created in SQLite database",
     }
+
+
+@app.get("/db/reviews")
+def get_db_reviews() -> dict[str, Any]:
+    return {"reviews": get_all_reviews()}
+
+
+@app.get("/db/audit")
+def get_db_audit() -> dict[str, Any]:
+    return {"audits": get_all_audits()}
+
+
+@app.get("/db/stats")
+def get_database_stats() -> dict[str, Any]:
+    return get_db_stats()
 
 
 @app.get("/export", response_model=None)

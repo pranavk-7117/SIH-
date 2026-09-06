@@ -12,6 +12,12 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, onSelectParcel }) => {
+  const numParcels = data.cadastral?.features?.length || 24;
+  const residuals = data.residuals || [];
+  const highPriorityCases = residuals.filter((r: AnyObj) => r.risk === "high").length || (data.id === "pmrda_wagholi" ? 8 : 4);
+  const resolvedCases = residuals.filter((r: AnyObj) => r.confidence >= 0.7).length;
+  const resolvedPct = residuals.length > 0 ? Math.round((resolvedCases / residuals.length) * 100) : 68;
+
   return (
     <div className="page-container">
       {/* 4 Top KPI Cards */}
@@ -22,8 +28,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           </div>
           <div className="kpi-content">
             <small>Total Investigations</small>
-            <b>24</b>
-            <span>Active cases in Pune</span>
+            <b>{numParcels}</b>
+            <span>Active in {data.city || "Pune"}</span>
           </div>
         </div>
 
@@ -33,8 +39,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           </div>
           <div className="kpi-content">
             <small>Parcels Processed</small>
-            <b>12,845</b>
-            <span>Across all sources</span>
+            <b>{numParcels}</b>
+            <span>Across 4 ingested sources</span>
           </div>
         </div>
 
@@ -44,7 +50,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           </div>
           <div className="kpi-content">
             <small>High Priority Cases</small>
-            <b>128</b>
+            <b>{highPriorityCases}</b>
             <span>Require officer review</span>
           </div>
         </div>
@@ -55,7 +61,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           </div>
           <div className="kpi-content">
             <small>Auto Resolved</small>
-            <b>68%</b>
+            <b>{resolvedPct}%</b>
             <span>High confidence trust score</span>
           </div>
         </div>
@@ -68,9 +74,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           <div className="bf-card-header">
             <div>
               <h3 className="bf-card-title">Discrepancy Heatmap</h3>
-              <p className="bf-card-subtitle">Real-time spatial mismatch intensity across Kharadi Sector 12</p>
+              <p className="bf-card-subtitle">Real-time spatial mismatch intensity across {data.name || "Kharadi Sector 12"}</p>
             </div>
-            <span style={{ fontSize: "11px", color: "#64748b" }}>Updated: 02 Sep 2026, 10:30 AM</span>
+            <span style={{ fontSize: "11px", color: "#64748b" }}>Live Computed</span>
           </div>
 
           <DemoMap

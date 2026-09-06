@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useId } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
 type AnyObj = Record<string, any>;
@@ -44,6 +44,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [svgPolys, setSvgPolys] = useState<AnyObj[]>([]);
+  const [svgRoads, setSvgRoads] = useState<AnyObj[]>([]);
   const [svgGNSS, setSvgGNSS] = useState<AnyObj[]>([]);
   const [hoveredParcel, setHoveredParcel] = useState<AnyObj | null>(null);
 
@@ -51,8 +52,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !data) return;
 
-    const centerLon = 73.7741;
-    const centerLat = 18.5604;
+    const initialCenter = data.center || [73.7741, 18.5604];
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -86,21 +86,24 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           },
         ],
       },
-      center: [centerLon, centerLat],
-      zoom: compact ? 17.2 : 17.7,
+      center: initialCenter,
+      zoom: compact ? 17.0 : 17.6,
       attributionControl: false,
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     const updateSvgOverlay = () => {
-      if (!map || !data.cadastral) return;
+      if (!map || !data || !data.cadastral) return;
+
       const parcels = data.cadastral.features || [];
       const harmonized = data.harmonized?.features || [];
       const buildings = data.buildings?.features || [];
       const residuals = data.residuals || [];
       const controls = data.control?.features || [];
+      const roads = data.municipal?.features || [];
 
+      // Project cadastral & drone polygons
       const projected = parcels.map((p: AnyObj, idx: number) => {
         const ring = p.geometry.coordinates[0];
         const screenPts = ring.map((coord: number[]) => {
@@ -162,7 +165,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         };
       });
 
-      // Projected GNSS control points
+      // Project GNSS control points
       const projectedGNSS = controls.map((ptFeat: AnyObj) => {
         const coords = ptFeat.geometry.coordinates;
         const pt = map.project([coords[0], coords[1]]);
@@ -174,12 +177,29 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         };
       });
 
+      // Project Municipal roads
+      const projectedRoads = roads.map((r: AnyObj) => {
+        const coords = r.geometry.coordinates;
+        const pts = coords.map((c: number[]) => {
+          const pt = map.project([c[0], c[1]]);
+          return `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+        });
+        return {
+          id: r.id,
+          name: r.properties?.name || "Municipal Road",
+          points: pts.join(" "),
+        };
+      });
+
       setSvgPolys(projected);
       setSvgGNSS(projectedGNSS);
+      setSvgRoads(projectedRoads);
     };
 
     map.on("load", () => {
+      map.resize();
       updateSvgOverlay();
+
       if (singleParcelFocus && data.cadastral) {
         const found = data.cadastral.features.find((f: AnyObj) => f.properties.parcel_number === singleParcelFocus);
         if (found) {
@@ -197,13 +217,15 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         }
       }
 
-      map.fitBounds(
-        [
-          [73.7729, 18.5593],
-          [73.7753, 18.5614],
-        ],
-        { padding: compact ? 15 : 40, duration: 0 }
-      );
+      if (data.bounds) {
+        map.fitBounds(
+          [
+            [data.bounds[0], data.bounds[1]],
+            [data.bounds[2], data.bounds[3]],
+          ],
+          { padding: compact ? 15 : 40, duration: 0 }
+        );
+      }
     });
 
     map.on("move", updateSvgOverlay);
@@ -217,7 +239,45 @@ export const DemoMap: React.FC<DemoMapProps> = ({
       map.remove();
       mapRef.current = null;
     };
-  }, [darkBackground, singleParcelFocus]);
+  }, [darkBackground]);
+
+  // Handle Area Change & Single Parcel Focus: Fly map to new coordinates
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !data) return;
+
+    // Trigger map container resize
+    map.resize();
+
+    if (singleParcelFocus && data.cadastral) {
+      const found = data.cadastral.features.find((f: AnyObj) => f.properties.parcel_number === singleParcelFocus);
+      if (found) {
+        const ring = found.geometry.coordinates[0];
+        const lons = ring.map((p: number[]) => p[0]);
+        const lats = ring.map((p: number[]) => p[1]);
+        map.fitBounds(
+          [
+            [Math.min(...lons) - 0.00025, Math.min(...lats) - 0.00025],
+            [Math.max(...lons) + 0.00025, Math.max(...lats) + 0.00025],
+          ],
+          { padding: compact ? 30 : 60, duration: 350 }
+        );
+        return;
+      }
+    }
+
+    if (data.bounds) {
+      map.fitBounds(
+        [
+          [data.bounds[0], data.bounds[1]],
+          [data.bounds[2], data.bounds[3]],
+        ],
+        { padding: compact ? 15 : 40, duration: 350 }
+      );
+    } else if (data.center) {
+      map.flyTo({ center: data.center, zoom: compact ? 17.0 : 17.6, duration: 350 });
+    }
+  }, [data.id, data.bounds, singleParcelFocus, compact]);
 
   const activeParcelNumber = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
 
@@ -245,23 +305,38 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           </filter>
         </defs>
 
+        {/* 1. Municipal Roads (Rendered first as background network) */}
+        {showMunicipal &&
+          svgRoads.map((road) => (
+            <polyline
+              key={road.id}
+              points={road.points}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeOpacity={opacityMunicipal}
+            />
+          ))}
+
         {svgPolys.map((item) => {
           const isSelected = selectedParcelId === item.id || activeParcelNumber === String(item.parcel_number);
 
           return (
             <g key={item.id} style={{ pointerEvents: "auto", cursor: "pointer" }}>
-              {/* 1. Drone Physical Outline (Blue) */}
+              {/* 2. Drone Physical Outline (Blue) */}
               {showDrone && item.dronePoints && !darkBackground && (
                 <polygon
                   points={item.dronePoints}
                   fill={mode === "discrepancy" ? "none" : "#38bdf8"}
                   fillOpacity={0.25 * opacityDrone}
                   stroke="#0284c7"
-                  strokeWidth="2.2"
+                  strokeWidth="2.4"
                 />
               )}
 
-              {/* 2. Cadastral / Heatmap Polygons (Vibrant Colors matching mockup) */}
+              {/* 3. Cadastral / Heatmap Polygons */}
               {showCadastral && !darkBackground && (
                 <polygon
                   points={item.points}
@@ -276,7 +351,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
                 />
               )}
 
-              {/* 3. AI Extracted Contours (for AI Extraction Screen) */}
+              {/* 4. AI Extracted Contours (for AI Extraction Screen) */}
               {(mode === "extract" || darkBackground) && (
                 <polygon
                   points={item.dronePoints || item.points}
@@ -288,7 +363,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
                 />
               )}
 
-              {/* 4. Harmonized Polygons (Green) */}
+              {/* 5. Harmonized Polygons (Green) */}
               {(showHarmonized || mode === "harmonized" || mode === "review") && item.harmPoints && (
                 <polygon
                   points={item.harmPoints}
@@ -299,7 +374,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
                 />
               )}
 
-              {/* 5. Residual Vectors (Red lines with endpoint dots) */}
+              {/* 6. Residual Vectors (Red lines with endpoint dots) */}
               {(showResiduals || mode === "harmonized" || mode === "discrepancy") && item.residualLine && (
                 <g>
                   <line
@@ -314,7 +389,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
                 </g>
               )}
 
-              {/* 6. Parcel Number Labels Centered Inside Each Polygon */}
+              {/* 7. Parcel Number Labels Centered Inside Each Polygon */}
               {!darkBackground && item.cx && item.cy && (
                 <text
                   x={item.cx}
@@ -338,7 +413,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           );
         })}
 
-        {/* 7. GNSS Survey Control Points (Purple Pins) */}
+        {/* 8. GNSS Survey Control Points (Purple Pins) */}
         {showGNSS &&
           svgGNSS.map((pt) => (
             <g key={pt.id} style={{ pointerEvents: "none" }}>
@@ -375,6 +450,11 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           {showDrone && (
             <span>
               <i className="cyan" /> Drone Footprint
+            </span>
+          )}
+          {showMunicipal && (
+            <span>
+              <i className="amber" style={{ background: "#f59e0b" }} /> Municipal Roads
             </span>
           )}
           {showHarmonized && (

@@ -1,4 +1,4 @@
-﻿import type { FeatureCollection, Feature } from "geojson";
+import type { FeatureCollection, Feature } from "geojson";
 
 export interface ResidualCase {
   case_id: string;
@@ -120,73 +120,71 @@ export function polygonBBox(ring: number[][]): [number, number, number, number] 
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
 }
 
-// 2D Affine transformation solver using least-squares normal equations
+// 2D Affine transformation solver using centered coordinates to guarantee numerical stability
 export function solveAffineTransform(
   sourcePts: [number, number][],
   targetPts: [number, number][]
 ): (pt: [number, number]) => [number, number] {
   const n = Math.min(sourcePts.length, targetPts.length);
-  if (n < 3) {
-    // Fallback: pure translation based on centroids
-    const cSrc = [sourcePts.reduce((s, p) => s + p[0], 0) / n, sourcePts.reduce((s, p) => s + p[1], 0) / n];
-    const cTgt = [targetPts.reduce((s, p) => s + p[0], 0) / n, targetPts.reduce((s, p) => s + p[1], 0) / n];
-    const dx = cTgt[0] - cSrc[0];
-    const dy = cTgt[1] - cSrc[1];
+  if (n < 2) {
+    const dx = n === 1 ? targetPts[0][0] - sourcePts[0][0] : 0;
+    const dy = n === 1 ? targetPts[0][1] - sourcePts[0][1] : 0;
     return ([x, y]) => [x + dx, y + dy];
   }
 
-  // Normal equations for [a, b, tx] and [c, d, ty]
-  let sX2 = 0, sY2 = 0, sXY = 0, sX = 0, sY = 0;
-  let sX_xp = 0, sY_xp = 0, s_xp = 0;
-  let sX_yp = 0, sY_yp = 0, s_yp = 0;
+  // 1. Centroids
+  const cSrcX = sourcePts.reduce((s, p) => s + p[0], 0) / n;
+  const cSrcY = sourcePts.reduce((s, p) => s + p[1], 0) / n;
+  const cTgtX = targetPts.reduce((s, p) => s + p[0], 0) / n;
+  const cTgtY = targetPts.reduce((s, p) => s + p[1], 0) / n;
+
+  // 2. Centered normal equations
+  let sU2 = 0, sV2 = 0, sUV = 0;
+  let sU_Up = 0, sV_Up = 0;
+  let sU_Vp = 0, sV_Vp = 0;
 
   for (let i = 0; i < n; i++) {
-    const x = sourcePts[i][0];
-    const y = sourcePts[i][1];
-    const xp = targetPts[i][0];
-    const yp = targetPts[i][1];
+    const u = sourcePts[i][0] - cSrcX;
+    const v = sourcePts[i][1] - cSrcY;
+    const up = targetPts[i][0] - cTgtX;
+    const vp = targetPts[i][1] - cTgtY;
 
-    sX2 += x * x;
-    sY2 += y * y;
-    sXY += x * y;
-    sX += x;
-    sY += y;
+    sU2 += u * u;
+    sV2 += v * v;
+    sUV += u * v;
 
-    sX_xp += x * xp;
-    sY_xp += y * xp;
-    s_xp += xp;
+    sU_Up += u * up;
+    sV_Up += v * up;
 
-    sX_yp += x * yp;
-    sY_yp += y * yp;
-    s_yp += yp;
+    sU_Vp += u * vp;
+    sV_Vp += v * vp;
   }
 
-  // Solve 3x3 linear system A * w = b using Cramer's rule
-  const det3 = (
-    a1: number, a2: number, a3: number,
-    b1: number, b2: number, b3: number,
-    c1: number, c2: number, c3: number
-  ) => a1 * (b2 * c3 - b3 * c2) - a2 * (b1 * c3 - b3 * c1) + a3 * (b1 * c2 - b2 * c1);
-
-  const D = det3(sX2, sXY, sX, sXY, sY2, sY, sX, sY, n);
-  if (Math.abs(D) < 1e-18) {
-    const dx = (s_xp - sX) / n;
-    const dy = (s_yp - sY) / n;
+  // Solve 2x2 system: [sU2 sUV; sUV sV2] * [a; b] = [sU_Up; sV_Up]
+  const D = sU2 * sV2 - sUV * sUV;
+  if (Math.abs(D) < 1e-22) {
+    const dx = cTgtX - cSrcX;
+    const dy = cTgtY - cSrcY;
     return ([x, y]) => [x + dx, y + dy];
   }
 
-  const a = det3(sX_xp, sXY, sX, sY_xp, sY2, sY, s_xp, sY, n) / D;
-  const b = det3(sX2, sX_xp, sX, sXY, sY_xp, sY, sX, s_xp, n) / D;
-  const tx = det3(sX2, sXY, sX_xp, sXY, sY2, sY_xp, sX, sY, s_xp) / D;
+  const a = (sV2 * sU_Up - sUV * sV_Up) / D;
+  const b = (sU2 * sV_Up - sUV * sU_Up) / D;
 
-  const c = det3(sX_yp, sXY, sX, sY_yp, sY2, sY, s_yp, sY, n) / D;
-  const d = det3(sX2, sX_yp, sX, sXY, sY_yp, sY, sX, s_yp, n) / D;
-  const ty = det3(sX2, sXY, sX_yp, sXY, sY2, sY_yp, sX, sY, s_yp) / D;
+  const c = (sV2 * sU_Vp - sUV * sV_Vp) / D;
+  const d = (sU2 * sV_Vp - sUV * sU_Vp) / D;
 
-  return ([x, y]) => [a * x + b * y + tx, c * x + d * y + ty];
+  return ([x, y]) => {
+    const u = x - cSrcX;
+    const v = y - cSrcY;
+    return [
+      cTgtX + a * u + b * v,
+      cTgtY + c * u + d * v,
+    ];
+  };
 }
 
-// Thin Plate Spline (TPS) elastic deformation solver
+// Thin Plate Spline (TPS) with Gaussian localized elastic deformation
 export function solveTPSTransform(
   sourcePts: [number, number][],
   targetPts: [number, number][]
@@ -196,13 +194,7 @@ export function solveTPSTransform(
     return solveAffineTransform(sourcePts, targetPts);
   }
 
-  // Radial basis function U(r) = r^2 * ln(r)
-  const U = (r: number) => {
-    if (r < 1e-9) return 0;
-    return r * r * Math.log(r);
-  };
-
-  // Build affine + TPS kernel weights
+  // Base global affine
   const affine = solveAffineTransform(sourcePts, targetPts);
 
   // Compute local residual vectors after affine
@@ -211,6 +203,14 @@ export function solveTPSTransform(
     return [targetPts[i][0] - aff[0], targetPts[i][1] - aff[1]];
   });
 
+  // Typical spacing between adjacent control points
+  let avgDist = 0;
+  for (let i = 0; i < n - 1; i++) {
+    avgDist += Math.hypot(sourcePts[i + 1][0] - sourcePts[i][0], sourcePts[i + 1][1] - sourcePts[i][1]);
+  }
+  avgDist = (avgDist / (n - 1)) || 0.0003;
+  const sigma2 = avgDist * avgDist;
+
   return (pt: [number, number]) => {
     const base = affine(pt);
     let warpX = 0;
@@ -218,15 +218,15 @@ export function solveTPSTransform(
     let totalWeight = 0;
 
     for (let i = 0; i < n; i++) {
-      const dist = Math.hypot(pt[0] - sourcePts[i][0], pt[1] - sourcePts[i][1]);
-      const w = 1.0 / (dist * dist + 1e-6);
+      const d2 = (pt[0] - sourcePts[i][0]) ** 2 + (pt[1] - sourcePts[i][1]) ** 2;
+      const w = Math.exp(-d2 / (2 * sigma2));
       warpX += residuals[i][0] * w;
       warpY += residuals[i][1] * w;
       totalWeight += w;
     }
 
-    if (totalWeight > 0) {
-      return [base[0] + (warpX / totalWeight) * 0.85, base[1] + (warpY / totalWeight) * 0.85];
+    if (totalWeight > 0.001) {
+      return [base[0] + (warpX / totalWeight) * 0.95, base[1] + (warpY / totalWeight) * 0.95];
     }
     return base;
   };

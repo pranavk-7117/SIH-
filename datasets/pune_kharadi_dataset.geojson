@@ -1,0 +1,3272 @@
+{
+  "id": "pune_kharadi",
+  "name": "Kharadi Sector 12",
+  "city": "Pune District",
+  "bounds": [
+    73.7729,
+    18.5602,
+    73.775678,
+    18.56186
+  ],
+  "center": [
+    73.774289,
+    18.56103
+  ],
+  "distortion_type": "mixed",
+  "cadastral": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "parcel-101",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77312565,
+                18.56041546
+              ],
+              [
+                73.77348618,
+                18.56042553
+              ],
+              [
+                73.77347814,
+                18.56071335
+              ],
+              [
+                73.77311762,
+                18.56070328
+              ],
+              [
+                73.77312565,
+                18.56041546
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-101",
+          "parcel_id": "101",
+          "parcel_number": 101,
+          "label": "Parcel 101",
+          "area_sqm": 1228.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 3.2,
+          "heatColor": "#ef4444",
+          "risk": "high",
+          "confidence": 0.29
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-102",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77352903,
+                18.56041546
+              ],
+              [
+                73.77388957,
+                18.56042553
+              ],
+              [
+                73.77388153,
+                18.56071335
+              ],
+              [
+                73.773521,
+                18.56070328
+              ],
+              [
+                73.77352903,
+                18.56041546
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-102",
+          "parcel_id": "102",
+          "parcel_number": 102,
+          "label": "Parcel 102",
+          "area_sqm": 1240.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 3.2,
+          "heatColor": "#ef4444",
+          "risk": "high",
+          "confidence": 0.29
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-103",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7739216,
+                18.56040963
+              ],
+              [
+                73.77428224,
+                18.56041467
+              ],
+              [
+                73.77427822,
+                18.56070257
+              ],
+              [
+                73.77391758,
+                18.56069754
+              ],
+              [
+                73.7739216,
+                18.56040963
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-103",
+          "parcel_id": "103",
+          "parcel_number": 103,
+          "label": "Parcel 103",
+          "area_sqm": 1252.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 1.9,
+          "heatColor": "#f59e0b",
+          "risk": "medium",
+          "confidence": 0.58
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-104",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431521,
+                18.56040037
+              ],
+              [
+                73.77467585,
+                18.56040541
+              ],
+              [
+                73.77467183,
+                18.56069331
+              ],
+              [
+                73.77431119,
+                18.56068827
+              ],
+              [
+                73.77431521,
+                18.56040037
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-104",
+          "parcel_id": "104",
+          "parcel_number": 104,
+          "label": "Parcel 104",
+          "area_sqm": 1264.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-105",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7747186,
+                18.56040037
+              ],
+              [
+                73.77507923,
+                18.56040541
+              ],
+              [
+                73.77507521,
+                18.56069331
+              ],
+              [
+                73.77471458,
+                18.56068827
+              ],
+              [
+                73.7747186,
+                18.56040037
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-105",
+          "parcel_id": "105",
+          "parcel_number": 105,
+          "label": "Parcel 105",
+          "area_sqm": 1216.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-106",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77512198,
+                18.56040037
+              ],
+              [
+                73.77548262,
+                18.56040541
+              ],
+              [
+                73.7754786,
+                18.56069331
+              ],
+              [
+                73.77511796,
+                18.56068827
+              ],
+              [
+                73.77512198,
+                18.56040037
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-106",
+          "parcel_id": "106",
+          "parcel_number": 106,
+          "label": "Parcel 106",
+          "area_sqm": 1228.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-107",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77312565,
+                18.56073938
+              ],
+              [
+                73.77348618,
+                18.56074945
+              ],
+              [
+                73.77347814,
+                18.56103727
+              ],
+              [
+                73.77311761,
+                18.5610272
+              ],
+              [
+                73.77312565,
+                18.56073938
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-107",
+          "parcel_id": "107",
+          "parcel_number": 107,
+          "label": "Parcel 107",
+          "area_sqm": 1240.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 3.2,
+          "heatColor": "#ef4444",
+          "risk": "high",
+          "confidence": 0.29
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-108",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77352903,
+                18.56073938
+              ],
+              [
+                73.77388957,
+                18.56074945
+              ],
+              [
+                73.77388153,
+                18.56103727
+              ],
+              [
+                73.77352099,
+                18.5610272
+              ],
+              [
+                73.77352903,
+                18.56073938
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-108",
+          "parcel_id": "108",
+          "parcel_number": 108,
+          "label": "Parcel 108",
+          "area_sqm": 1252.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 3.2,
+          "heatColor": "#ef4444",
+          "risk": "high",
+          "confidence": 0.29
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-109",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7739216,
+                18.56073355
+              ],
+              [
+                73.77428224,
+                18.56073859
+              ],
+              [
+                73.77427822,
+                18.56102649
+              ],
+              [
+                73.77391758,
+                18.56102146
+              ],
+              [
+                73.7739216,
+                18.56073355
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-109",
+          "parcel_id": "109",
+          "parcel_number": 109,
+          "label": "Parcel 109",
+          "area_sqm": 1264.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 1.9,
+          "heatColor": "#f59e0b",
+          "risk": "medium",
+          "confidence": 0.58
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-110",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431521,
+                18.56072429
+              ],
+              [
+                73.77467585,
+                18.56072933
+              ],
+              [
+                73.77467183,
+                18.56101723
+              ],
+              [
+                73.77431119,
+                18.56101219
+              ],
+              [
+                73.77431521,
+                18.56072429
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-110",
+          "parcel_id": "110",
+          "parcel_number": 110,
+          "label": "Parcel 110",
+          "area_sqm": 1216.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-111",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7747186,
+                18.56072429
+              ],
+              [
+                73.77507923,
+                18.56072933
+              ],
+              [
+                73.77507521,
+                18.56101723
+              ],
+              [
+                73.77471458,
+                18.56101219
+              ],
+              [
+                73.7747186,
+                18.56072429
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-111",
+          "parcel_id": "111",
+          "parcel_number": 111,
+          "label": "Parcel 111",
+          "area_sqm": 1228.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-112",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77512198,
+                18.56072429
+              ],
+              [
+                73.77548262,
+                18.56072933
+              ],
+              [
+                73.7754786,
+                18.56101723
+              ],
+              [
+                73.77511796,
+                18.56101219
+              ],
+              [
+                73.77512198,
+                18.56072429
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-112",
+          "parcel_id": "112",
+          "parcel_number": 112,
+          "label": "Parcel 112",
+          "area_sqm": 1240.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-113",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77311483,
+                18.56105747
+              ],
+              [
+                73.77347547,
+                18.56106251
+              ],
+              [
+                73.77347145,
+                18.56135041
+              ],
+              [
+                73.77311081,
+                18.56134538
+              ],
+              [
+                73.77311483,
+                18.56105747
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-113",
+          "parcel_id": "113",
+          "parcel_number": 113,
+          "label": "Parcel 113",
+          "area_sqm": 1252.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 1.9,
+          "heatColor": "#f59e0b",
+          "risk": "medium",
+          "confidence": 0.58
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-114",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77351821,
+                18.56105747
+              ],
+              [
+                73.77387886,
+                18.56106251
+              ],
+              [
+                73.77387484,
+                18.56135041
+              ],
+              [
+                73.77351419,
+                18.56134538
+              ],
+              [
+                73.77351821,
+                18.56105747
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-114",
+          "parcel_id": "114",
+          "parcel_number": 114,
+          "label": "Parcel 114",
+          "area_sqm": 1264.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 1.9,
+          "heatColor": "#f59e0b",
+          "risk": "medium",
+          "confidence": 0.58
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-115",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7739216,
+                18.56105747
+              ],
+              [
+                73.77428224,
+                18.56106251
+              ],
+              [
+                73.77427822,
+                18.56135041
+              ],
+              [
+                73.77391758,
+                18.56134538
+              ],
+              [
+                73.7739216,
+                18.56105747
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-115",
+          "parcel_id": "115",
+          "parcel_number": 115,
+          "label": "Parcel 115",
+          "area_sqm": 1216.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 1.9,
+          "heatColor": "#f59e0b",
+          "risk": "medium",
+          "confidence": 0.58
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-116",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431521,
+                18.56104821
+              ],
+              [
+                73.77467585,
+                18.56105325
+              ],
+              [
+                73.77467183,
+                18.56134115
+              ],
+              [
+                73.77431119,
+                18.56133611
+              ],
+              [
+                73.77431521,
+                18.56104821
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-116",
+          "parcel_id": "116",
+          "parcel_number": 116,
+          "label": "Parcel 116",
+          "area_sqm": 1228.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-117",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7747186,
+                18.56104821
+              ],
+              [
+                73.77507923,
+                18.56105325
+              ],
+              [
+                73.77507521,
+                18.56134115
+              ],
+              [
+                73.77471458,
+                18.56133611
+              ],
+              [
+                73.7747186,
+                18.56104821
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-117",
+          "parcel_id": "117",
+          "parcel_number": 117,
+          "label": "Parcel 117",
+          "area_sqm": 1240.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-118",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77512198,
+                18.56104821
+              ],
+              [
+                73.77548262,
+                18.56105325
+              ],
+              [
+                73.7754786,
+                18.56134115
+              ],
+              [
+                73.77511796,
+                18.56133611
+              ],
+              [
+                73.77512198,
+                18.56104821
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-118",
+          "parcel_id": "118",
+          "parcel_number": 118,
+          "label": "Parcel 118",
+          "area_sqm": 1252.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-119",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77310506,
+                18.56137213
+              ],
+              [
+                73.77346569,
+                18.56137717
+              ],
+              [
+                73.77346167,
+                18.56166506
+              ],
+              [
+                73.77310104,
+                18.56166002
+              ],
+              [
+                73.77310506,
+                18.56137213
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-119",
+          "parcel_id": "119",
+          "parcel_number": 119,
+          "label": "Parcel 119",
+          "area_sqm": 1264.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-120",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77350844,
+                18.56137213
+              ],
+              [
+                73.77386908,
+                18.56137717
+              ],
+              [
+                73.77386506,
+                18.56166506
+              ],
+              [
+                73.77350442,
+                18.56166002
+              ],
+              [
+                73.77350844,
+                18.56137213
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-120",
+          "parcel_id": "120",
+          "parcel_number": 120,
+          "label": "Parcel 120",
+          "area_sqm": 1216.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-121",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77391183,
+                18.56137213
+              ],
+              [
+                73.77427246,
+                18.56137717
+              ],
+              [
+                73.77426844,
+                18.56166506
+              ],
+              [
+                73.77390781,
+                18.56166002
+              ],
+              [
+                73.77391183,
+                18.56137213
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-121",
+          "parcel_id": "121",
+          "parcel_number": 121,
+          "label": "Parcel 121",
+          "area_sqm": 1228.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-122",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431521,
+                18.56137213
+              ],
+              [
+                73.77467585,
+                18.56137717
+              ],
+              [
+                73.77467183,
+                18.56166506
+              ],
+              [
+                73.77431119,
+                18.56166002
+              ],
+              [
+                73.77431521,
+                18.56137213
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-122",
+          "parcel_id": "122",
+          "parcel_number": 122,
+          "label": "Parcel 122",
+          "area_sqm": 1240.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-123",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7747186,
+                18.56137213
+              ],
+              [
+                73.77507923,
+                18.56137717
+              ],
+              [
+                73.77507521,
+                18.56166506
+              ],
+              [
+                73.77471458,
+                18.56166002
+              ],
+              [
+                73.7747186,
+                18.56137213
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-123",
+          "parcel_id": "123",
+          "parcel_number": 123,
+          "label": "Parcel 123",
+          "area_sqm": 1252.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "parcel-124",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77512198,
+                18.56137213
+              ],
+              [
+                73.77548262,
+                18.56137717
+              ],
+              [
+                73.7754786,
+                18.56166506
+              ],
+              [
+                73.77511796,
+                18.56166002
+              ],
+              [
+                73.77512198,
+                18.56137213
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "parcel-124",
+          "parcel_id": "124",
+          "parcel_number": 124,
+          "label": "Parcel 124",
+          "area_sqm": 1264.0,
+          "source_type": "authoritative_cadastral_simulated",
+          "authority_level": 0.95,
+          "is_synthetic": true,
+          "timestamp": "1960-04-15",
+          "conflict_m": 0.45,
+          "heatColor": "#22c55e",
+          "risk": "low",
+          "confidence": 0.9
+        }
+      }
+    ]
+  },
+  "buildings": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "building-101",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7731,
+                18.5604
+              ],
+              [
+                73.77346067,
+                18.5604
+              ],
+              [
+                73.77346067,
+                18.56068793
+              ],
+              [
+                73.7731,
+                18.56068793
+              ],
+              [
+                73.7731,
+                18.5604
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-101",
+          "parcel_id": "101",
+          "label": "Drone Footprint 101",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#ef4444",
+          "area_sqm": 1228.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-102",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77350338,
+                18.5604
+              ],
+              [
+                73.77386406,
+                18.5604
+              ],
+              [
+                73.77386406,
+                18.56068793
+              ],
+              [
+                73.77350338,
+                18.56068793
+              ],
+              [
+                73.77350338,
+                18.5604
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-102",
+          "parcel_id": "102",
+          "label": "Drone Footprint 102",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#ef4444",
+          "area_sqm": 1240.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-103",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77390677,
+                18.5604
+              ],
+              [
+                73.77426744,
+                18.5604
+              ],
+              [
+                73.77426744,
+                18.56068793
+              ],
+              [
+                73.77390677,
+                18.56068793
+              ],
+              [
+                73.77390677,
+                18.5604
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-103",
+          "parcel_id": "103",
+          "label": "Drone Footprint 103",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#f59e0b",
+          "area_sqm": 1252.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-104",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431015,
+                18.5604
+              ],
+              [
+                73.77467083,
+                18.5604
+              ],
+              [
+                73.77467083,
+                18.56068793
+              ],
+              [
+                73.77431015,
+                18.56068793
+              ],
+              [
+                73.77431015,
+                18.5604
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-104",
+          "parcel_id": "104",
+          "label": "Drone Footprint 104",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1264.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-105",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77471354,
+                18.5604
+              ],
+              [
+                73.77507421,
+                18.5604
+              ],
+              [
+                73.77507421,
+                18.56068793
+              ],
+              [
+                73.77471354,
+                18.56068793
+              ],
+              [
+                73.77471354,
+                18.5604
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-105",
+          "parcel_id": "105",
+          "label": "Drone Footprint 105",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1216.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-106",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77511692,
+                18.5604
+              ],
+              [
+                73.7754776,
+                18.5604
+              ],
+              [
+                73.7754776,
+                18.56068793
+              ],
+              [
+                73.77511692,
+                18.56068793
+              ],
+              [
+                73.77511692,
+                18.5604
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-106",
+          "parcel_id": "106",
+          "label": "Drone Footprint 106",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1228.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-107",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7731,
+                18.56072392
+              ],
+              [
+                73.77346067,
+                18.56072392
+              ],
+              [
+                73.77346067,
+                18.56101185
+              ],
+              [
+                73.7731,
+                18.56101185
+              ],
+              [
+                73.7731,
+                18.56072392
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-107",
+          "parcel_id": "107",
+          "label": "Drone Footprint 107",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#ef4444",
+          "area_sqm": 1240.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-108",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77350338,
+                18.56072392
+              ],
+              [
+                73.77386406,
+                18.56072392
+              ],
+              [
+                73.77386406,
+                18.56101185
+              ],
+              [
+                73.77350338,
+                18.56101185
+              ],
+              [
+                73.77350338,
+                18.56072392
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-108",
+          "parcel_id": "108",
+          "label": "Drone Footprint 108",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#ef4444",
+          "area_sqm": 1252.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-109",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77390677,
+                18.56072392
+              ],
+              [
+                73.77426744,
+                18.56072392
+              ],
+              [
+                73.77426744,
+                18.56101185
+              ],
+              [
+                73.77390677,
+                18.56101185
+              ],
+              [
+                73.77390677,
+                18.56072392
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-109",
+          "parcel_id": "109",
+          "label": "Drone Footprint 109",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#f59e0b",
+          "area_sqm": 1264.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-110",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431015,
+                18.56072392
+              ],
+              [
+                73.77467083,
+                18.56072392
+              ],
+              [
+                73.77467083,
+                18.56101185
+              ],
+              [
+                73.77431015,
+                18.56101185
+              ],
+              [
+                73.77431015,
+                18.56072392
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-110",
+          "parcel_id": "110",
+          "label": "Drone Footprint 110",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1216.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-111",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77471354,
+                18.56072392
+              ],
+              [
+                73.77507421,
+                18.56072392
+              ],
+              [
+                73.77507421,
+                18.56101185
+              ],
+              [
+                73.77471354,
+                18.56101185
+              ],
+              [
+                73.77471354,
+                18.56072392
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-111",
+          "parcel_id": "111",
+          "label": "Drone Footprint 111",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1228.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-112",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77511692,
+                18.56072392
+              ],
+              [
+                73.7754776,
+                18.56072392
+              ],
+              [
+                73.7754776,
+                18.56101185
+              ],
+              [
+                73.77511692,
+                18.56101185
+              ],
+              [
+                73.77511692,
+                18.56072392
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-112",
+          "parcel_id": "112",
+          "label": "Drone Footprint 112",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1240.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-113",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7731,
+                18.56104784
+              ],
+              [
+                73.77346067,
+                18.56104784
+              ],
+              [
+                73.77346067,
+                18.56133577
+              ],
+              [
+                73.7731,
+                18.56133577
+              ],
+              [
+                73.7731,
+                18.56104784
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-113",
+          "parcel_id": "113",
+          "label": "Drone Footprint 113",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#f59e0b",
+          "area_sqm": 1252.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-114",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77350338,
+                18.56104784
+              ],
+              [
+                73.77386406,
+                18.56104784
+              ],
+              [
+                73.77386406,
+                18.56133577
+              ],
+              [
+                73.77350338,
+                18.56133577
+              ],
+              [
+                73.77350338,
+                18.56104784
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-114",
+          "parcel_id": "114",
+          "label": "Drone Footprint 114",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#f59e0b",
+          "area_sqm": 1264.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-115",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77390677,
+                18.56104784
+              ],
+              [
+                73.77426744,
+                18.56104784
+              ],
+              [
+                73.77426744,
+                18.56133577
+              ],
+              [
+                73.77390677,
+                18.56133577
+              ],
+              [
+                73.77390677,
+                18.56104784
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-115",
+          "parcel_id": "115",
+          "label": "Drone Footprint 115",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#f59e0b",
+          "area_sqm": 1216.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-116",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431015,
+                18.56104784
+              ],
+              [
+                73.77467083,
+                18.56104784
+              ],
+              [
+                73.77467083,
+                18.56133577
+              ],
+              [
+                73.77431015,
+                18.56133577
+              ],
+              [
+                73.77431015,
+                18.56104784
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-116",
+          "parcel_id": "116",
+          "label": "Drone Footprint 116",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1228.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-117",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77471354,
+                18.56104784
+              ],
+              [
+                73.77507421,
+                18.56104784
+              ],
+              [
+                73.77507421,
+                18.56133577
+              ],
+              [
+                73.77471354,
+                18.56133577
+              ],
+              [
+                73.77471354,
+                18.56104784
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-117",
+          "parcel_id": "117",
+          "label": "Drone Footprint 117",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1240.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-118",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77511692,
+                18.56104784
+              ],
+              [
+                73.7754776,
+                18.56104784
+              ],
+              [
+                73.7754776,
+                18.56133577
+              ],
+              [
+                73.77511692,
+                18.56133577
+              ],
+              [
+                73.77511692,
+                18.56104784
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-118",
+          "parcel_id": "118",
+          "label": "Drone Footprint 118",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1252.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-119",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.7731,
+                18.56137176
+              ],
+              [
+                73.77346067,
+                18.56137176
+              ],
+              [
+                73.77346067,
+                18.56165968
+              ],
+              [
+                73.7731,
+                18.56165968
+              ],
+              [
+                73.7731,
+                18.56137176
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-119",
+          "parcel_id": "119",
+          "label": "Drone Footprint 119",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1264.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-120",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77350338,
+                18.56137176
+              ],
+              [
+                73.77386406,
+                18.56137176
+              ],
+              [
+                73.77386406,
+                18.56165968
+              ],
+              [
+                73.77350338,
+                18.56165968
+              ],
+              [
+                73.77350338,
+                18.56137176
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-120",
+          "parcel_id": "120",
+          "label": "Drone Footprint 120",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1216.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-121",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77390677,
+                18.56137176
+              ],
+              [
+                73.77426744,
+                18.56137176
+              ],
+              [
+                73.77426744,
+                18.56165968
+              ],
+              [
+                73.77390677,
+                18.56165968
+              ],
+              [
+                73.77390677,
+                18.56137176
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-121",
+          "parcel_id": "121",
+          "label": "Drone Footprint 121",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1228.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-122",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77431015,
+                18.56137176
+              ],
+              [
+                73.77467083,
+                18.56137176
+              ],
+              [
+                73.77467083,
+                18.56165968
+              ],
+              [
+                73.77431015,
+                18.56165968
+              ],
+              [
+                73.77431015,
+                18.56137176
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-122",
+          "parcel_id": "122",
+          "label": "Drone Footprint 122",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1240.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-123",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77471354,
+                18.56137176
+              ],
+              [
+                73.77507421,
+                18.56137176
+              ],
+              [
+                73.77507421,
+                18.56165968
+              ],
+              [
+                73.77471354,
+                18.56165968
+              ],
+              [
+                73.77471354,
+                18.56137176
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-123",
+          "parcel_id": "123",
+          "label": "Drone Footprint 123",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1252.0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "building-124",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                73.77511692,
+                18.56137176
+              ],
+              [
+                73.7754776,
+                18.56137176
+              ],
+              [
+                73.7754776,
+                18.56165968
+              ],
+              [
+                73.77511692,
+                18.56165968
+              ],
+              [
+                73.77511692,
+                18.56137176
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": "building-124",
+          "parcel_id": "124",
+          "label": "Drone Footprint 124",
+          "source_type": "derived_building_footprint_real",
+          "authority_level": 0.72,
+          "is_synthetic": false,
+          "timestamp": "2024-05-18",
+          "heatColor": "#22c55e",
+          "area_sqm": 1264.0
+        }
+      }
+    ]
+  },
+  "extracted": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-101",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7731,
+              18.5604
+            ],
+            [
+              73.77346067,
+              18.5604
+            ],
+            [
+              73.77346067,
+              18.56068793
+            ],
+            [
+              73.7731,
+              18.56068793
+            ],
+            [
+              73.7731,
+              18.5604
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-101",
+          "parcel_id": "101",
+          "confidence": 0.9,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-102",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77350338,
+              18.5604
+            ],
+            [
+              73.77386406,
+              18.5604
+            ],
+            [
+              73.77386406,
+              18.56068793
+            ],
+            [
+              73.77350338,
+              18.56068793
+            ],
+            [
+              73.77350338,
+              18.5604
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-102",
+          "parcel_id": "102",
+          "confidence": 0.87,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-103",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77390677,
+              18.5604
+            ],
+            [
+              73.77426744,
+              18.5604
+            ],
+            [
+              73.77426744,
+              18.56068793
+            ],
+            [
+              73.77390677,
+              18.56068793
+            ],
+            [
+              73.77390677,
+              18.5604
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-103",
+          "parcel_id": "103",
+          "confidence": 0.84,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-104",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77431015,
+              18.5604
+            ],
+            [
+              73.77467083,
+              18.5604
+            ],
+            [
+              73.77467083,
+              18.56068793
+            ],
+            [
+              73.77431015,
+              18.56068793
+            ],
+            [
+              73.77431015,
+              18.5604
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-104",
+          "parcel_id": "104",
+          "confidence": 0.81,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-105",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77471354,
+              18.5604
+            ],
+            [
+              73.77507421,
+              18.5604
+            ],
+            [
+              73.77507421,
+              18.56068793
+            ],
+            [
+              73.77471354,
+              18.56068793
+            ],
+            [
+              73.77471354,
+              18.5604
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-105",
+          "parcel_id": "105",
+          "confidence": 0.93,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-106",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77511692,
+              18.5604
+            ],
+            [
+              73.7754776,
+              18.5604
+            ],
+            [
+              73.7754776,
+              18.56068793
+            ],
+            [
+              73.77511692,
+              18.56068793
+            ],
+            [
+              73.77511692,
+              18.5604
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-106",
+          "parcel_id": "106",
+          "confidence": 0.9,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-107",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7731,
+              18.56072392
+            ],
+            [
+              73.77346067,
+              18.56072392
+            ],
+            [
+              73.77346067,
+              18.56101185
+            ],
+            [
+              73.7731,
+              18.56101185
+            ],
+            [
+              73.7731,
+              18.56072392
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-107",
+          "parcel_id": "107",
+          "confidence": 0.87,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-108",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77350338,
+              18.56072392
+            ],
+            [
+              73.77386406,
+              18.56072392
+            ],
+            [
+              73.77386406,
+              18.56101185
+            ],
+            [
+              73.77350338,
+              18.56101185
+            ],
+            [
+              73.77350338,
+              18.56072392
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-108",
+          "parcel_id": "108",
+          "confidence": 0.84,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-109",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77390677,
+              18.56072392
+            ],
+            [
+              73.77426744,
+              18.56072392
+            ],
+            [
+              73.77426744,
+              18.56101185
+            ],
+            [
+              73.77390677,
+              18.56101185
+            ],
+            [
+              73.77390677,
+              18.56072392
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-109",
+          "parcel_id": "109",
+          "confidence": 0.81,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-110",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77431015,
+              18.56072392
+            ],
+            [
+              73.77467083,
+              18.56072392
+            ],
+            [
+              73.77467083,
+              18.56101185
+            ],
+            [
+              73.77431015,
+              18.56101185
+            ],
+            [
+              73.77431015,
+              18.56072392
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-110",
+          "parcel_id": "110",
+          "confidence": 0.93,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-111",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77471354,
+              18.56072392
+            ],
+            [
+              73.77507421,
+              18.56072392
+            ],
+            [
+              73.77507421,
+              18.56101185
+            ],
+            [
+              73.77471354,
+              18.56101185
+            ],
+            [
+              73.77471354,
+              18.56072392
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-111",
+          "parcel_id": "111",
+          "confidence": 0.9,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-112",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77511692,
+              18.56072392
+            ],
+            [
+              73.7754776,
+              18.56072392
+            ],
+            [
+              73.7754776,
+              18.56101185
+            ],
+            [
+              73.77511692,
+              18.56101185
+            ],
+            [
+              73.77511692,
+              18.56072392
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-112",
+          "parcel_id": "112",
+          "confidence": 0.87,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-113",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7731,
+              18.56104784
+            ],
+            [
+              73.77346067,
+              18.56104784
+            ],
+            [
+              73.77346067,
+              18.56133577
+            ],
+            [
+              73.7731,
+              18.56133577
+            ],
+            [
+              73.7731,
+              18.56104784
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-113",
+          "parcel_id": "113",
+          "confidence": 0.84,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-114",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77350338,
+              18.56104784
+            ],
+            [
+              73.77386406,
+              18.56104784
+            ],
+            [
+              73.77386406,
+              18.56133577
+            ],
+            [
+              73.77350338,
+              18.56133577
+            ],
+            [
+              73.77350338,
+              18.56104784
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-114",
+          "parcel_id": "114",
+          "confidence": 0.81,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-115",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77390677,
+              18.56104784
+            ],
+            [
+              73.77426744,
+              18.56104784
+            ],
+            [
+              73.77426744,
+              18.56133577
+            ],
+            [
+              73.77390677,
+              18.56133577
+            ],
+            [
+              73.77390677,
+              18.56104784
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-115",
+          "parcel_id": "115",
+          "confidence": 0.93,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-116",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77431015,
+              18.56104784
+            ],
+            [
+              73.77467083,
+              18.56104784
+            ],
+            [
+              73.77467083,
+              18.56133577
+            ],
+            [
+              73.77431015,
+              18.56133577
+            ],
+            [
+              73.77431015,
+              18.56104784
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-116",
+          "parcel_id": "116",
+          "confidence": 0.9,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-117",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77471354,
+              18.56104784
+            ],
+            [
+              73.77507421,
+              18.56104784
+            ],
+            [
+              73.77507421,
+              18.56133577
+            ],
+            [
+              73.77471354,
+              18.56133577
+            ],
+            [
+              73.77471354,
+              18.56104784
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-117",
+          "parcel_id": "117",
+          "confidence": 0.87,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-118",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77511692,
+              18.56104784
+            ],
+            [
+              73.7754776,
+              18.56104784
+            ],
+            [
+              73.7754776,
+              18.56133577
+            ],
+            [
+              73.77511692,
+              18.56133577
+            ],
+            [
+              73.77511692,
+              18.56104784
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-118",
+          "parcel_id": "118",
+          "confidence": 0.84,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-119",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7731,
+              18.56137176
+            ],
+            [
+              73.77346067,
+              18.56137176
+            ],
+            [
+              73.77346067,
+              18.56165968
+            ],
+            [
+              73.7731,
+              18.56165968
+            ],
+            [
+              73.7731,
+              18.56137176
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-119",
+          "parcel_id": "119",
+          "confidence": 0.81,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-120",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77350338,
+              18.56137176
+            ],
+            [
+              73.77386406,
+              18.56137176
+            ],
+            [
+              73.77386406,
+              18.56165968
+            ],
+            [
+              73.77350338,
+              18.56165968
+            ],
+            [
+              73.77350338,
+              18.56137176
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-120",
+          "parcel_id": "120",
+          "confidence": 0.93,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-121",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77390677,
+              18.56137176
+            ],
+            [
+              73.77426744,
+              18.56137176
+            ],
+            [
+              73.77426744,
+              18.56165968
+            ],
+            [
+              73.77390677,
+              18.56165968
+            ],
+            [
+              73.77390677,
+              18.56137176
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-121",
+          "parcel_id": "121",
+          "confidence": 0.9,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-122",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77431015,
+              18.56137176
+            ],
+            [
+              73.77467083,
+              18.56137176
+            ],
+            [
+              73.77467083,
+              18.56165968
+            ],
+            [
+              73.77431015,
+              18.56165968
+            ],
+            [
+              73.77431015,
+              18.56137176
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-122",
+          "parcel_id": "122",
+          "confidence": 0.87,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-123",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77471354,
+              18.56137176
+            ],
+            [
+              73.77507421,
+              18.56137176
+            ],
+            [
+              73.77507421,
+              18.56165968
+            ],
+            [
+              73.77471354,
+              18.56165968
+            ],
+            [
+              73.77471354,
+              18.56137176
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-123",
+          "parcel_id": "123",
+          "confidence": 0.84,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "extracted-boundary-124",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.77511692,
+              18.56137176
+            ],
+            [
+              73.7754776,
+              18.56137176
+            ],
+            [
+              73.7754776,
+              18.56165968
+            ],
+            [
+              73.77511692,
+              18.56165968
+            ],
+            [
+              73.77511692,
+              18.56137176
+            ]
+          ]
+        },
+        "properties": {
+          "id": "extracted-boundary-124",
+          "parcel_id": "124",
+          "confidence": 0.81,
+          "method": "SegFormer-B0 Drone Segmentation",
+          "source_type": "derived_imagery_real"
+        }
+      }
+    ]
+  },
+  "control": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "gnss-P-101",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.7731,
+            18.56068793
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-101",
+          "name": "P-101",
+          "label": "P-101",
+          "parcel_id": "101",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.02,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-102",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.77386406,
+            18.5604
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-102",
+          "name": "P-102",
+          "label": "P-102",
+          "parcel_id": "102",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.035,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-103",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.77390677,
+            18.5604
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-103",
+          "name": "P-103",
+          "label": "P-103",
+          "parcel_id": "103",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.05,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-104",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.77467083,
+            18.56068793
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-104",
+          "name": "P-104",
+          "label": "P-104",
+          "parcel_id": "104",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.065,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-105",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.77471354,
+            18.5604
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-105",
+          "name": "P-105",
+          "label": "P-105",
+          "parcel_id": "105",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.08,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-106",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.7754776,
+            18.5604
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-106",
+          "name": "P-106",
+          "label": "P-106",
+          "parcel_id": "106",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.095,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-107",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.7731,
+            18.56101185
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-107",
+          "name": "P-107",
+          "label": "P-107",
+          "parcel_id": "107",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.11,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "gnss-P-108",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            73.77386406,
+            18.56072392
+          ]
+        },
+        "properties": {
+          "id": "gnss-P-108",
+          "name": "P-108",
+          "label": "P-108",
+          "parcel_id": "108",
+          "source_type": "synthetic_control",
+          "authority_level": 0.85,
+          "positional_accuracy_m": 0.125,
+          "timestamp": "2024-02-14",
+          "equipment": "Trimble R12 GNSS Receiver (RTK)"
+        }
+      }
+    ]
+  },
+  "municipal": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "road-pune_kharadi-north",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7728,
+              18.56185968
+            ],
+            [
+              73.7757776,
+              18.56185968
+            ]
+          ]
+        },
+        "properties": {
+          "name": "Kharadi Sector 12 Main Access Road",
+          "highway": "primary",
+          "authority_level": 0.68
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "road-pune_kharadi-south",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7728,
+              18.560200000000002
+            ],
+            [
+              73.7757776,
+              18.560200000000002
+            ]
+          ]
+        },
+        "properties": {
+          "name": "Kharadi Sector 12 Sector Bypass",
+          "highway": "secondary",
+          "authority_level": 0.68
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "road-pune_kharadi-mid",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              73.7742888,
+              18.560100000000002
+            ],
+            [
+              73.7742888,
+              18.56195968
+            ]
+          ]
+        },
+        "properties": {
+          "name": "Municipal Internal Corridor",
+          "highway": "residential",
+          "authority_level": 0.68
+        }
+      }
+    ]
+  },
+  "provenance": {
+    "area": "Kharadi Sector 12, Pune District, Maharashtra",
+    "bbox": [
+      18.5604,
+      73.7731,
+      18.56166,
+      73.775478
+    ],
+    "crs_original": "EPSG:32643 (UTM Zone 43N)",
+    "crs_normalized": "EPSG:4326 (WGS84)",
+    "source_authority": "Revenue & Forest Dept, Govt of Maharashtra",
+    "imagery_source": "Esri World Imagery / SVAMITVA Orthomosaic"
+  }
+}
