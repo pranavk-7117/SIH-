@@ -9,7 +9,12 @@ import {
   ResidualCase,
 } from "../utils/geoEngine";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+let rawBase = (import.meta.env.VITE_API_URL || "").trim();
+if (rawBase && !rawBase.startsWith("http://") && !rawBase.startsWith("https://")) {
+  rawBase = `https://${rawBase}`;
+}
+rawBase = rawBase.replace(/\/+$/, "");
+const API_BASE = rawBase;
 
 export interface HarmonizeParams {
   areaId: string;
