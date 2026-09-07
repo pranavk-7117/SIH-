@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FileText, Camera, Navigation, Building2, CheckCircle2, Upload, ArrowRight, ShieldAlert, AlertCircle, Loader2 } from "lucide-react";
+import { FileText, Camera, Navigation, Building2, CheckCircle2, Upload, ArrowRight, ShieldAlert, AlertCircle, Loader2, Mountain, Zap, FileSpreadsheet, ShieldCheck } from "lucide-react";
 import { Screen } from "./Sidebar";
 import { api } from "../api/client";
 
@@ -165,7 +165,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
 
       {/* Upload Cards Grid */}
       <div className="upload-cards-grid">
-        {/* Cadastral Layer (Active GeoJSON upload) */}
+        {/* 1. Cadastral Layer (Legal Baseline) */}
         <div className="upload-source-card" style={{ borderColor: "#10b981" }}>
           <div className="upload-card-top">
             <div className="source-icon-title">
@@ -174,7 +174,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
               </div>
               <div className="source-title-text">
                 <h3>Cadastral Geometry (Active)</h3>
-                <span>GeoJSON / JSON (Legal Baseline)</span>
+                <span>Existing Cadastral Maps (Legal Baseline)</span>
               </div>
             </div>
             <span className="file-status-pill">
@@ -192,42 +192,11 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
               <span>Upload GeoJSON</span>
               <input type="file" accept=".geojson,.json" onChange={handleGeoJSONUpload} />
             </label>
-            <span className="badge-pill success">Shapely Validated</span>
+            <span className="badge-pill success">Legal Authority 0.95</span>
           </div>
         </div>
 
-        {/* GNSS Survey Points (Active CSV upload) */}
-        <div className="upload-source-card" style={{ borderColor: "#8b5cf6" }}>
-          <div className="upload-card-top">
-            <div className="source-icon-title">
-              <div className="source-icon" style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}>
-                <Navigation size={20} />
-              </div>
-              <div className="source-title-text">
-                <h3>GNSS Survey Points (Active)</h3>
-                <span>CSV / TXT (lat, lon, accuracy_m)</span>
-              </div>
-            </div>
-            <span className="file-status-pill">
-              <CheckCircle2 size={13} />
-              <span>Active</span>
-            </span>
-          </div>
-          <div className="uploaded-file-row">
-            <span>{uploadedCSVInfo?.filename || "gnss_rtk_control_points.csv"}</span>
-            <small style={{ color: "#64748b" }}>{uploadedCSVInfo ? `${uploadedCSVInfo.points_parsed} points` : "8 control points"}</small>
-          </div>
-          <div className="upload-action-row">
-            <label className="upload-file-btn">
-              <Upload size={13} />
-              <span>Upload CSV</span>
-              <input type="file" accept=".csv,.txt" onChange={handleCSVUpload} />
-            </label>
-            <span className="badge-pill success">RTK &lt;2cm</span>
-          </div>
-        </div>
-
-        {/* Drone Imagery / Orthomosaic (Real GeoTIFF Header Ingestion) */}
+        {/* 2. Drone Orthomosaic & ORI */}
         <div className="upload-source-card" style={{ borderColor: "#0284c7" }}>
           <div className="upload-card-top">
             <div className="source-icon-title">
@@ -235,8 +204,8 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
                 <Camera size={20} />
               </div>
               <div className="source-title-text">
-                <h3>Drone GeoTIFF / Orthomosaic</h3>
-                <span>Cloud-Optimized GeoTIFF / COG (.tif, .tiff)</span>
+                <h3>Drone Imagery & ORI (Active)</h3>
+                <span>Orthorectified Imagery / COG (.tif, .tiff)</span>
               </div>
             </div>
             <span className="file-status-pill">
@@ -258,7 +227,38 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
           </div>
         </div>
 
-        {/* Municipal GPKG / SHP / GeoJSON (Real Municipal Vector Ingestion) */}
+        {/* 3. GNSS / CORS Survey Data */}
+        <div className="upload-source-card" style={{ borderColor: "#8b5cf6" }}>
+          <div className="upload-card-top">
+            <div className="source-icon-title">
+              <div className="source-icon" style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}>
+                <Navigation size={20} />
+              </div>
+              <div className="source-title-text">
+                <h3>GNSS / CORS Survey Data (Active)</h3>
+                <span>RTK Control Points (lat, lon, accuracy)</span>
+              </div>
+            </div>
+            <span className="file-status-pill">
+              <CheckCircle2 size={13} />
+              <span>Active</span>
+            </span>
+          </div>
+          <div className="uploaded-file-row">
+            <span>{uploadedCSVInfo?.filename || "gnss_rtk_control_points.csv"}</span>
+            <small style={{ color: "#64748b" }}>{uploadedCSVInfo ? `${uploadedCSVInfo.points_parsed} points` : "8 control points"}</small>
+          </div>
+          <div className="upload-action-row">
+            <label className="upload-file-btn">
+              <Upload size={13} />
+              <span>Upload CSV</span>
+              <input type="file" accept=".csv,.txt" onChange={handleCSVUpload} />
+            </label>
+            <span className="badge-pill success">RTK &lt;2cm Precision</span>
+          </div>
+        </div>
+
+        {/* 4. Municipal GIS Layers */}
         <div className="upload-source-card" style={{ borderColor: "#f59e0b" }}>
           <div className="upload-card-top">
             <div className="source-icon-title">
@@ -266,8 +266,8 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
                 <Building2 size={20} />
               </div>
               <div className="source-title-text">
-                <h3>Municipal GIS (GPKG / SHP / GeoJSON)</h3>
-                <span>GeoPackage / Shapefile / GeoJSON</span>
+                <h3>Municipal GIS Layers (Active)</h3>
+                <span>Admin Boundaries, Roads & ROW (.gpkg, .shp)</span>
               </div>
             </div>
             <span className="file-status-pill">
@@ -288,18 +288,126 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
             <span className="badge-pill success">GeoPandas / Pyogrio</span>
           </div>
         </div>
+
+        {/* 5. DSM / DTM Elevation Datasets */}
+        <div className="upload-source-card" style={{ borderColor: "#06b6d4" }}>
+          <div className="upload-card-top">
+            <div className="source-icon-title">
+              <div className="source-icon" style={{ background: "rgba(6, 182, 212, 0.1)", color: "#06b6d4" }}>
+                <Mountain size={20} />
+              </div>
+              <div className="source-title-text">
+                <h3>DSM / DTM Datasets (Active)</h3>
+                <span>Digital Surface & Terrain Models (Slope / Height)</span>
+              </div>
+            </div>
+            <span className="file-status-pill">
+              <CheckCircle2 size={13} />
+              <span>Active</span>
+            </span>
+          </div>
+          <div className="uploaded-file-row">
+            <span>pune_elevation_samples.json</span>
+            <small style={{ color: "#64748b" }}>IDW Gradient &gt;12% Flagging</small>
+          </div>
+          <div className="upload-action-row">
+            <span className="badge-pill success">Terrain Gradient Active</span>
+            <span className="badge-pill info">562m Mean Baseline</span>
+          </div>
+        </div>
+
+        {/* 6. Utility Network Data */}
+        <div className="upload-source-card" style={{ borderColor: "#ec4899" }}>
+          <div className="upload-card-top">
+            <div className="source-icon-title">
+              <div className="source-icon" style={{ background: "rgba(236, 72, 153, 0.1)", color: "#ec4899" }}>
+                <Zap size={20} />
+              </div>
+              <div className="source-title-text">
+                <h3>Utility Network Data (Active)</h3>
+                <span>Power Transmission, Water & Gas Pipelines</span>
+              </div>
+            </div>
+            <span className="file-status-pill">
+              <CheckCircle2 size={13} />
+              <span>Active</span>
+            </span>
+          </div>
+          <div className="uploaded-file-row">
+            <span>osm_pune_context.json (Overpass)</span>
+            <small style={{ color: "#64748b" }}>Live Cached Corridors</small>
+          </div>
+          <div className="upload-action-row">
+            <span className="badge-pill success">Overpass Query Active</span>
+            <span className="badge-pill info">power / pipeline tags</span>
+          </div>
+        </div>
+
+        {/* 7. Revenue Records (Record of Rights) */}
+        <div className="upload-source-card" style={{ borderColor: "#14b8a6" }}>
+          <div className="upload-card-top">
+            <div className="source-icon-title">
+              <div className="source-icon" style={{ background: "rgba(20, 184, 166, 0.1)", color: "#14b8a6" }}>
+                <FileSpreadsheet size={20} />
+              </div>
+              <div className="source-title-text">
+                <h3>Revenue Records (Active)</h3>
+                <span>7/12 Extract, Khata, Khasra & Mutations</span>
+              </div>
+            </div>
+            <span className="file-status-pill">
+              <CheckCircle2 size={13} />
+              <span>Active</span>
+            </span>
+          </div>
+          <div className="uploaded-file-row">
+            <span>revenue_data.py (Govt of Maharashtra)</span>
+            <small style={{ color: "#64748b" }}>Joined via parcel_id</small>
+          </div>
+          <div className="upload-action-row">
+            <span className="badge-pill success">Non-Spatial ROR Active</span>
+            <span className="badge-pill info">Encumbrance & Disputes</span>
+          </div>
+        </div>
+
+        {/* 8. Ground Truthing (GT) & Adjudication */}
+        <div className="upload-source-card" style={{ borderColor: "#6366f1" }}>
+          <div className="upload-card-top">
+            <div className="source-icon-title">
+              <div className="source-icon" style={{ background: "rgba(99, 102, 241, 0.1)", color: "#6366f1" }}>
+                <ShieldCheck size={20} />
+              </div>
+              <div className="source-title-text">
+                <h3>Ground Truthing / GT (Active)</h3>
+                <span>Field Verification Decisions & Ledger</span>
+              </div>
+            </div>
+            <span className="file-status-pill">
+              <CheckCircle2 size={13} />
+              <span>Active</span>
+            </span>
+          </div>
+          <div className="uploaded-file-row">
+            <span>SQLite ground_truth Table</span>
+            <small style={{ color: "#64748b" }}>SHA-256 Chained Ledger</small>
+          </div>
+          <div className="upload-action-row">
+            <span className="badge-pill success">Field Survey Review</span>
+            <span className="badge-pill info">AI vs GT Consensus</span>
+          </div>
+        </div>
       </div>
 
       {/* Upload Summary Box & Action Bar */}
       <div className="upload-summary-box">
         <div className="summary-metrics-group">
           <div className="summary-metric-item">
-            <small>Active Sources</small>
-            <b>2 Live + 2 Proxies</b>
+            <small>Active NAKSHA Datasets</small>
+            <b style={{ color: "#10b981" }}>8 Multi-Source Layers</b>
           </div>
           <div className="summary-metric-item">
-            <small>GeoJSON Support</small>
-            <b style={{ color: "#10b981" }}>Validated</b>
+            <small>Format Crosswalk</small>
+            <b style={{ color: "#10b981" }}>SHP / GPKG / CSV / COG</b>
           </div>
           <div className="summary-metric-item">
             <small>CRS Transformation</small>
