@@ -543,6 +543,42 @@ class ApiClient {
       ],
     };
   }
+
+  async createReport(invId: string, payload: { report_type: string; title: string; format: string; summary?: string; content?: string }): Promise<any> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations/${invId}/reports`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        return await res.json();
+      } catch (err) {
+        console.warn("createReport error:", err);
+      }
+    }
+    return {
+      status: "saved",
+      report: {
+        id: `REP-${Date.now()}`,
+        investigation_id: invId,
+        ...payload,
+        created_at: new Date().toISOString(),
+      },
+    };
+  }
+
+  async getReports(invId: string): Promise<any[]> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations/${invId}/reports`);
+        if (res.ok) return await res.json();
+      } catch (err) {
+        console.warn("getReports error:", err);
+      }
+    }
+    return [];
+  }
 }
 
 export const api = new ApiClient();

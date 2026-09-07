@@ -69,6 +69,20 @@ def init_db() -> None:
     );
     """)
 
+    # Investigation Reports — persists court-admissible audit reports and summaries
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS investigation_reports (
+        id TEXT PRIMARY KEY,
+        investigation_id TEXT NOT NULL,
+        report_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        format TEXT NOT NULL,
+        summary TEXT,
+        content TEXT,
+        created_at TEXT NOT NULL
+    );
+    """)
+
     # Review Decisions — append-only ledger with hash chain
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS review_decisions (
@@ -440,3 +454,52 @@ def get_investigation_sources(inv_id: str) -> dict[str, dict[str, Any]]:
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return {r["source_key"]: r for r in rows}
+
+
+def save_investigation_report(
+    report_id: str,
+    inv_id: str,
+    report_type: str,
+    title: str,
+    format: str,
+    summary: str = "",
+    content: str = "",
+) -> dict[str, Any]:
+    conn = get_db()
+    cursor = conn.cursor()
+    ts = datetime.now(timezone.utc).isoformat()
+    cursor.execute(
+        """INSERT INTO investigation_reports
+           (id, investigation_id, report_type, title, format, summary, content, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+               title = excluded.title,
+               summary = excluded.summary,
+               content = excluded.content,
+               created_at = excluded.created_at""",
+        (report_id, inv_id, report_type, title, format, summary, content, ts),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "id": report_id,
+        "investigation_id": inv_id,
+        "report_type": report_type,
+        "title": title,
+        "format": format,
+        "summary": summary,
+        "created_at": ts,
+    }
+
+
+def get_investigation_reports(inv_id: str) -> list[dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, investigation_id, report_type, title, format, summary, created_at FROM investigation_reports WHERE investigation_id = ? ORDER BY created_at DESC",
+        (inv_id,),
+    )
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+

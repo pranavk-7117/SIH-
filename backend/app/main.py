@@ -23,7 +23,8 @@ from app.db import (
     init_db, insert_review, get_all_reviews, get_all_audits, get_db_stats,
     verify_audit_chain, index_features_rtree, query_candidates_rtree,
     create_investigation, get_investigations, get_investigation, update_investigation_step,
-    upsert_investigation_source, get_investigation_sources
+    upsert_investigation_source, get_investigation_sources,
+    save_investigation_report, get_investigation_reports
 )
 from app.revenue_data import get_revenue_records, get_revenue_record
 from app.attribute_mapping import map_to_department, detect_schema, DEPARTMENT_SCHEMAS
@@ -93,6 +94,15 @@ class ReviewRequest(BaseModel):
     ai_recommendation: str = ""
     area_id: str = "pune_kharadi"
     investigation_id: str | None = None
+
+
+class SaveReportRequest(BaseModel):
+    report_type: str = "investigation_summary"
+    title: str
+    format: str = "txt"
+    summary: str = ""
+    content: str = ""
+
 
 
 # ── Geometry Helpers ────────────────────────────────────────────────────────
@@ -669,6 +679,27 @@ def normalize_investigation_crs(inv_id: str) -> dict[str, Any]:
         "transformations": transformations,
         "message": "All spatial datasets have been normalized to EPSG:32643 (UTM Zone 43N)"
     }
+
+
+@app.post("/investigations/{inv_id}/reports")
+def create_report_for_investigation(inv_id: str, req: SaveReportRequest) -> dict[str, Any]:
+    report_id = f"REP-{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+    rep = save_investigation_report(
+        report_id=report_id,
+        inv_id=inv_id,
+        report_type=req.report_type,
+        title=req.title,
+        format=req.format,
+        summary=req.summary,
+        content=req.content,
+    )
+    return {"status": "saved", "report": rep}
+
+
+@app.get("/investigations/{inv_id}/reports")
+def list_reports_for_investigation(inv_id: str) -> list[dict[str, Any]]:
+    return get_investigation_reports(inv_id)
+
 
 
 @app.post("/harmonize")
