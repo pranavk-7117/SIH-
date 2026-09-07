@@ -334,7 +334,7 @@ export const App: React.FC = () => {
           isComputing={isComputing}
         />
 
-        <main className="page-container">
+        <main className="main-content">
           {currentScreen === "dashboard" && (
             <DashboardView
               data={liveData}
