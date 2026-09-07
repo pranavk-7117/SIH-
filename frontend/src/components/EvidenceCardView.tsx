@@ -163,18 +163,22 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
             </button>
             <button
               className="btn-outline"
-              onClick={() => {
-                if (onNavigate) {
-                  onNavigate("discrepancy");
-                } else {
-                  setShowInlineMap(!showInlineMap);
-                }
-              }}
-              title="View on full Discrepancy Map"
+              onClick={() => setShowInlineMap(!showInlineMap)}
+              title="Toggle inline parcel map"
             >
               <Eye size={13} style={{ marginRight: "4px" }} />
-              <span>Map View</span>
+              <span>{showInlineMap ? "Hide Map" : "Map View"}</span>
             </button>
+            {onNavigate && (
+              <button
+                className="btn-outline"
+                onClick={() => onNavigate("discrepancy")}
+                title="Open full Discrepancy Map"
+                style={{ padding: "0 10px" }}
+              >
+                <Eye size={13} />
+              </button>
+            )}
           </div>
         </div>
 

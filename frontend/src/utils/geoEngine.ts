@@ -505,7 +505,17 @@ export function computeLiveHarmonization(
   const cadFeatures = cadastralFC.features || [];
   const droneFeatures = droneFC.features || [];
 
-  const MID_LAT = 18.56;
+  // Compute MID_LAT dynamically from actual feature centroids — not hardcoded to Pune
+  const allLats: number[] = [];
+  for (const feat of cadFeatures) {
+    const ring = (feat.geometry as any)?.coordinates?.[0];
+    if (Array.isArray(ring)) {
+      for (const pt of ring) {
+        if (typeof pt[1] === "number") allLats.push(pt[1]);
+      }
+    }
+  }
+  const MID_LAT = allLats.length > 0 ? allLats.reduce((a, b) => a + b, 0) / allLats.length : 18.56;
   const LON_SCALE = 111139 * Math.cos((MID_LAT * Math.PI) / 180);
   const LAT_SCALE = 111139;
 

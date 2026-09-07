@@ -72,6 +72,8 @@ export const App: React.FC = () => {
     control?: any;
     municipal?: any;
     utilities?: any;
+    dsm?: any;
+    revenue?: any;
   }>({});
 
   const activeArea = STUDY_AREAS[activeAreaId];
@@ -222,7 +224,11 @@ export const App: React.FC = () => {
     showToast("All 4 sources normalized to EPSG:4326 (WGS84). Ready to harmonize.");
   };
 
-  const handleUploadData = (layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities", geojson: any, meta: any) => {
+  const handleUploadData = (
+    layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue",
+    geojson: any,
+    meta: any
+  ) => {
     const updatedCustom = {
       ...customLayers,
       [layerType]: geojson,
@@ -239,6 +245,25 @@ export const App: React.FC = () => {
     runHarmonization({ customLayers: updatedCustom });
   };
 
+  // Compute dynamic bounds from uploaded cadastral so map re-centers on user data
+  const computeBoundsFromFC = (fc: any): [number, number, number, number] | null => {
+    const features = fc?.features || [];
+    const pts: number[][] = [];
+    for (const f of features) {
+      const ring = f?.geometry?.coordinates?.[0];
+      if (Array.isArray(ring)) pts.push(...ring);
+    }
+    if (pts.length === 0) return null;
+    const lons = pts.map((p) => p[0]);
+    const lats = pts.map((p) => p[1]);
+    return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+  };
+
+  const uploadedBounds = customLayers.cadastral ? computeBoundsFromFC(customLayers.cadastral) : null;
+  const uploadedCenter: [number, number] | null = uploadedBounds
+    ? [(uploadedBounds[0] + uploadedBounds[2]) / 2, (uploadedBounds[1] + uploadedBounds[3]) / 2]
+    : null;
+
   // Build data bundle for views from live results
   const liveData = {
     ...activeArea,
@@ -246,6 +271,9 @@ export const App: React.FC = () => {
     buildings: customLayers.buildings || activeArea?.buildings,
     control: customLayers.control || activeArea?.control,
     municipal: customLayers.municipal || activeArea?.municipal,
+    // Override map center/bounds when user uploads data from a different area
+    ...(uploadedBounds ? { bounds: uploadedBounds } : {}),
+    ...(uploadedCenter ? { center: uploadedCenter } : {}),
     residuals: harmonizeResult?.residuals || [],
     harmonized: harmonizeResult?.harmonized || { type: "FeatureCollection", features: [] },
     harmonize_meta: harmonizeResult
@@ -264,6 +292,7 @@ export const App: React.FC = () => {
         }
       : null,
   };
+
 
   const selectedParcelNum = parseInt(selectedParcelId.replace("parcel-", ""), 10);
   const selectedCase = harmonizeResult?.residuals.find((r) => r.parcel_num === selectedParcelNum)

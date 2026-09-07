@@ -9,7 +9,7 @@ interface UploadIngestViewProps {
   onTriggerNormalize?: () => void;
   onNormalize?: () => void;
   onContinue?: () => void;
-  onUploadData?: (layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities", geojson: any, meta: any) => void;
+  onUploadData?: (layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue", geojson: any, meta: any) => void;
 }
 
 export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
@@ -28,6 +28,9 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
   const [uploadedCSVInfo, setUploadedCSVInfo] = useState<any>(null);
   const [uploadedDroneInfo, setUploadedDroneInfo] = useState<any>(null);
   const [uploadedMunicipalInfo, setUploadedMunicipalInfo] = useState<any>(null);
+  const [uploadedDSMInfo, setUploadedDSMInfo] = useState<any>(null);
+  const [uploadedUtilityInfo, setUploadedUtilityInfo] = useState<any>(null);
+  const [uploadedRevenueInfo, setUploadedRevenueInfo] = useState<any>(null);
 
   const handleGeoJSONUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,6 +117,110 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
     if (onNormalize) onNormalize();
     else if (onTriggerNormalize) onTriggerNormalize();
   };
+
+  const handleDSMUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadStatus(`Parsing DSM/DTM elevation data from ${file.name}...`);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      let res: any;
+      try {
+        const resp = await fetch(
+          `${(import.meta as any).env?.VITE_API_BASE || "https://bhumi-fuse-production.up.railway.app"}/upload/dsm-json`,
+          { method: "POST", body: form }
+        );
+        res = await resp.json();
+      } catch {
+        // Client-side fallback: parse elevation JSON locally
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const points: any[] = Array.isArray(data) ? data : data.features || Object.values(data);
+        const elevs: number[] = points
+          .map((p: any) => parseFloat(p?.elevation_m ?? p?.elev ?? p?.elevation ?? p?.z))
+          .filter((v) => !isNaN(v));
+        res = {
+          filename: file.name,
+          points_parsed: points.length,
+          elevation_points: elevs.length,
+          mean_elevation_m: elevs.length ? (elevs.reduce((a, b) => a + b, 0) / elevs.length).toFixed(1) : 562,
+        };
+      }
+      setUploadedDSMInfo(res);
+      setUploadStatus(
+        `✓ Parsed ${res.elevation_points ?? res.points_parsed ?? 0} elevation points · Mean ${res.mean_elevation_m}m`
+      );
+    } catch (err) {
+      setUploadStatus(`Error parsing DSM: ${err}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUtilityUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadStatus(`Ingesting utility network data from ${file.name}...`);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      let res: any;
+      try {
+        const resp = await fetch(
+          `${(import.meta as any).env?.VITE_API_BASE || "https://bhumi-fuse-production.up.railway.app"}/upload/utility-geojson`,
+          { method: "POST", body: form }
+        );
+        res = await resp.json();
+      } catch {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const features = data.features || (data.type === "Feature" ? [data] : []);
+        res = { filename: file.name, features: features.length, geojson: data };
+      }
+      setUploadedUtilityInfo(res);
+      setUploadStatus(`✓ Parsed ${res.features ?? 0} utility network features from ${file.name}`);
+      if (res.geojson && onUploadData) {
+        onUploadData("utilities", res.geojson, res);
+      }
+    } catch (err) {
+      setUploadStatus(`Error uploading utility data: ${err}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRevenueCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadStatus(`Parsing Revenue Records (7/12) from ${file.name}...`);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      let res: any;
+      try {
+        const resp = await fetch(
+          `${(import.meta as any).env?.VITE_API_BASE || "https://bhumi-fuse-production.up.railway.app"}/upload/revenue-csv`,
+          { method: "POST", body: form }
+        );
+        res = await resp.json();
+      } catch {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).filter(Boolean);
+        res = { filename: file.name, records_parsed: Math.max(0, lines.length - 1), records: [] };
+      }
+      setUploadedRevenueInfo(res);
+      setUploadStatus(`✓ Parsed ${res.records_parsed ?? 0} revenue records (7/12 Extract / ROR format)`);
+    } catch (err) {
+      setUploadStatus(`Error parsing revenue records: ${err}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
 
   return (
     <div className="page-container">
@@ -298,7 +405,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
               </div>
               <div className="source-title-text">
                 <h3>DSM / DTM Datasets (Active)</h3>
-                <span>Digital Surface & Terrain Models (Slope / Height)</span>
+                <span>Digital Surface &amp; Terrain Models (Slope / Height)</span>
               </div>
             </div>
             <span className="file-status-pill">
@@ -307,12 +414,20 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
             </span>
           </div>
           <div className="uploaded-file-row">
-            <span>pune_elevation_samples.json</span>
-            <small style={{ color: "#64748b" }}>IDW Gradient &gt;12% Flagging</small>
+            <span>{uploadedDSMInfo?.filename || "pune_elevation_samples.json"}</span>
+            <small style={{ color: "#64748b" }}>
+              {uploadedDSMInfo
+                ? `${uploadedDSMInfo.elevation_points ?? uploadedDSMInfo.points_parsed} pts · Mean ${uploadedDSMInfo.mean_elevation_m}m`
+                : "IDW Gradient >12% Flagging"}
+            </small>
           </div>
           <div className="upload-action-row">
+            <label className="upload-file-btn">
+              <Upload size={13} />
+              <span>Upload Elevation JSON</span>
+              <input type="file" accept=".json,.geojson,.csv" onChange={handleDSMUpload} />
+            </label>
             <span className="badge-pill success">Terrain Gradient Active</span>
-            <span className="badge-pill info">562m Mean Baseline</span>
           </div>
         </div>
 
@@ -325,7 +440,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
               </div>
               <div className="source-title-text">
                 <h3>Utility Network Data (Active)</h3>
-                <span>Power Transmission, Water & Gas Pipelines</span>
+                <span>Power Transmission, Water &amp; Gas Pipelines</span>
               </div>
             </div>
             <span className="file-status-pill">
@@ -334,12 +449,20 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
             </span>
           </div>
           <div className="uploaded-file-row">
-            <span>osm_pune_context.json (Overpass)</span>
-            <small style={{ color: "#64748b" }}>Live Cached Corridors</small>
+            <span>{uploadedUtilityInfo?.filename || "osm_pune_context.json (Overpass)"}</span>
+            <small style={{ color: "#64748b" }}>
+              {uploadedUtilityInfo
+                ? `${uploadedUtilityInfo.features} features · ${uploadedUtilityInfo.power_lines ?? 0} power · ${uploadedUtilityInfo.pipelines ?? 0} pipelines`
+                : "Live Cached Corridors"}
+            </small>
           </div>
           <div className="upload-action-row">
-            <span className="badge-pill success">Overpass Query Active</span>
-            <span className="badge-pill info">power / pipeline tags</span>
+            <label className="upload-file-btn">
+              <Upload size={13} />
+              <span>Upload Utility GeoJSON</span>
+              <input type="file" accept=".geojson,.json" onChange={handleUtilityUpload} />
+            </label>
+            <span className="badge-pill success">Overpass / GeoJSON</span>
           </div>
         </div>
 
@@ -352,7 +475,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
               </div>
               <div className="source-title-text">
                 <h3>Revenue Records (Active)</h3>
-                <span>7/12 Extract, Khata, Khasra & Mutations</span>
+                <span>7/12 Extract, Khata, Khasra &amp; Mutations</span>
               </div>
             </div>
             <span className="file-status-pill">
@@ -361,12 +484,18 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
             </span>
           </div>
           <div className="uploaded-file-row">
-            <span>revenue_data.py (Govt of Maharashtra)</span>
-            <small style={{ color: "#64748b" }}>Joined via parcel_id</small>
+            <span>{uploadedRevenueInfo?.filename || "revenue_data.py (Govt of Maharashtra)"}</span>
+            <small style={{ color: "#64748b" }}>
+              {uploadedRevenueInfo ? `${uploadedRevenueInfo.records_parsed} records parsed` : "Joined via parcel_id"}
+            </small>
           </div>
           <div className="upload-action-row">
-            <span className="badge-pill success">Non-Spatial ROR Active</span>
-            <span className="badge-pill info">Encumbrance & Disputes</span>
+            <label className="upload-file-btn">
+              <Upload size={13} />
+              <span>Upload 7/12 CSV</span>
+              <input type="file" accept=".csv,.txt" onChange={handleRevenueCSVUpload} />
+            </label>
+            <span className="badge-pill success">Non-Spatial ROR Join</span>
           </div>
         </div>
 
