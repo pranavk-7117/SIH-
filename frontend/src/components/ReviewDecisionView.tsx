@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { CheckCircle2, XCircle, Edit3, ArrowUpRight, Clock, Send, ShieldCheck } from "lucide-react";
+﻿import React, { useState } from "react";
+import { ChevronLeft, ChevronRight, ShieldAlert, CheckCircle2, ArrowRight, Clock, FileText } from "lucide-react";
 import { DemoMap } from "./DemoMap";
 import { Screen } from "./Sidebar";
 
@@ -20,209 +20,224 @@ export const ReviewDecisionView: React.FC<ReviewDecisionViewProps> = ({
   onNavigate,
   onSubmitDecision,
 }) => {
-  const parcelNum = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
-  const [decision, setDecision] = useState<"accept" | "reject" | "adjust" | "escalate" | "dnd">("escalate");
-  const [notes, setNotes] = useState("");
+  const [activeTab, setActiveTab] = useState<"evidence" | "history">("evidence");
+  const [decision, setDecision] = useState<string>("field_verification");
+  const [comments, setComments] = useState("Displacement exceeds 6m with active 7/12 dispute. Request ground surveyor RTK field check.");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
-    onSubmitDecision(decision, notes, selectedParcelId || "parcel-101");
+  const parcelNum = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "216/3";
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmitDecision(decision, comments, selectedParcelId || "parcel-216/3");
     setSubmitted(true);
     setTimeout(() => {
       onNavigate?.("audit");
-    }, 1200);
+    }, 1500);
   };
 
-  const currentDateStr = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   return (
-    <div className="page-container">
-      {/* Breadcrumb */}
-      <div className="breadcrumb">
-        <span>Investigation</span>
-        <span>&gt;</span>
-        <span>INV-2026-00124</span>
-        <span>&gt;</span>
-        <span className="active">Parcel Review & Decision</span>
+    <div className="page-container review-decision-root">
+      {/* Header */}
+      <div className="view-page-header">
+        <div>
+          <h2>Review &amp; Decision</h2>
+          <p>Human-in-the-loop adjudication &bull; Court-admissible immutable parcel ledger</p>
+        </div>
+        <div className="pagination-controls">
+          <button className="btn-outline-sm" title="Previous conflict">
+            <ChevronLeft size={14} />
+            <span>Previous</span>
+          </button>
+          <span className="page-number-pill">3 / 18</span>
+          <button className="btn-outline-sm" title="Next conflict">
+            <span>Next</span>
+            <ChevronRight size={14} />
+          </button>
+        </div>
       </div>
 
-      <div className="review-layout">
-        {/* Left Column: Parcel Info & Confidence */}
-        <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div className="bf-card-title">
-            <span>Parcel Information</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#94a3b8" }}>Parcel ID:</span>
-              <b style={{ color: "#38bdf8" }}>{parcelNum}</b>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#94a3b8" }}>Survey Area:</span>
-              <b style={{ color: "#fff" }}>1,250.45 m²</b>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#94a3b8" }}>Location:</span>
-              <span style={{ color: "#cbd5e1" }}>Kharadi Sector 12</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#94a3b8" }}>Conflict Level:</span>
-              <span className="badge-pill high" style={{ fontSize: "10px" }}>High (2.45m)</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#94a3b8" }}>Confidence:</span>
-              <b style={{ color: "#ef4444" }}>34%</b>
+      {/* Main 3-Column Layout matching Screen 10 */}
+      <div className="review-3-column-grid">
+        {/* Left Column: Focused Parcel Map */}
+        <div className="bf-card review-map-col">
+          <div className="review-col-header">
+            <span>Spatial Comparison</span>
+            <div className="map-legend-pills">
+              <span className="pill-cadastral">Cadastral</span>
+              <span className="pill-drone">Drone ORI</span>
             </div>
           </div>
+          <div className="review-map-box" style={{ height: "360px" }}>
+            <DemoMap data={data} singleParcelFocus={selectedParcelId || "parcel-216/3"} />
+          </div>
+        </div>
 
-          <hr style={{ borderColor: "var(--border-color)", margin: "4px 0" }} />
-
-          <div className="confidence-gauge-box">
-            <div className="gauge-circle" style={{ borderColor: "#ef4444" }}>
-              34%
+        {/* Center Column: Evidence Summary & History Tabs */}
+        <div className="bf-card review-evidence-col">
+          <div className="parcel-id-row">
+            <div>
+              <small>Parcel ID</small>
+              <h3>{parcelNum}</h3>
             </div>
-            <span style={{ fontSize: "11px", color: "#f87171", marginTop: "8px", fontWeight: 700 }}>
-              Review Recommended
+            <span className="badge-pill warning" style={{ background: "#fef2f2", color: "#991b1b", borderColor: "#fecaca" }}>
+              <ShieldAlert size={13} style={{ marginRight: "4px" }} />
+              Do Not Decide
             </span>
           </div>
 
-          <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "6px", padding: "10px" }}>
-            <small style={{ color: "#10b981", fontWeight: 700, display: "block", marginBottom: "3px" }}>
-              Governance Rule
-            </small>
-            <p style={{ fontSize: "10.5px", color: "#94a3b8", lineHeight: "1.3" }}>
-              The system never silently overwrites the 1960 legal cadastral record. Submitting this review creates an immutable versioned decision event.
-            </p>
+          <div className="evidence-subtabs">
+            <button
+              className={`subtab-btn ${activeTab === "evidence" ? "active" : ""}`}
+              onClick={() => setActiveTab("evidence")}
+            >
+              Evidence
+            </button>
+            <button
+              className={`subtab-btn ${activeTab === "history" ? "active" : ""}`}
+              onClick={() => setActiveTab("history")}
+            >
+              History
+            </button>
+          </div>
+
+          {activeTab === "evidence" ? (
+            <div className="evidence-facts-list">
+              <div className="fact-item">
+                <div className="fact-label">Cadastral vs Drone:</div>
+                <div className="fact-val red">Boundary displacement 6.3 m</div>
+              </div>
+              <div className="fact-item">
+                <div className="fact-label">GNSS disagreement:</div>
+                <div className="fact-val red">2.8 m</div>
+              </div>
+              <div className="fact-item">
+                <div className="fact-label">Registration residual:</div>
+                <div className="fact-val amber">2.3 m</div>
+              </div>
+              <div className="fact-item">
+                <div className="fact-label">Revenue record:</div>
+                <div className="fact-val amber">Dispute flag active</div>
+              </div>
+            </div>
+          ) : (
+            <div className="history-timeline">
+              <div className="hist-row">
+                <Clock size={13} style={{ color: "#64748b" }} />
+                <span>1960: Cadastral revenue survey registered (2400 sqm)</span>
+              </div>
+              <div className="hist-row">
+                <Clock size={13} style={{ color: "#64748b" }} />
+                <span>2021: Mutation recorded (Khata KH-3481)</span>
+              </div>
+              <div className="hist-row">
+                <Clock size={13} style={{ color: "#ef4444" }} />
+                <span>2024: Civil dispute filed over southern boundary corridor</span>
+              </div>
+            </div>
+          )}
+
+          <div className="evidence-footer-hint">
+            <span>System recommends field verification with dual-frequency RTK rover.</span>
           </div>
         </div>
 
-        {/* Center Column: Detailed Map Inspection */}
-        <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div className="bf-card-header">
-            <h3 className="bf-card-title">Parcel Evidence Overlay (Parcel {parcelNum})</h3>
-            <div style={{ display: "flex", gap: "10px", fontSize: "10.5px" }}>
-              <span style={{ color: "#f59e0b", fontWeight: 700 }}>--- Cadastral (Legal)</span>
-              <span style={{ color: "#38bdf8", fontWeight: 700 }}>— Drone Footprint</span>
-              <span style={{ color: "#10b981", fontWeight: 700 }}>— Harmonized</span>
-            </div>
-          </div>
-
-          <DemoMap
-            data={data}
-            mode="review"
-            compact={false}
-            singleParcelFocus={Number(parcelNum) || 101}
-            showCadastral={true}
-            showDrone={true}
-            showHarmonized={true}
-            showResiduals={true}
-            showGNSS={true}
-          />
-        </div>
-
-        {/* Right Column: Decision Action Panel */}
-        <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div className="bf-card-title">
-            <span>Decision Action</span>
-          </div>
-
-          <div className="decision-options-group">
-            {/* Accept */}
-            <div
-              className={`decision-option-btn accept ${decision === "accept" ? "active" : ""}`}
-              onClick={() => setDecision("accept")}
-            >
-              <CheckCircle2 size={18} />
-              <div>
-                <b style={{ fontSize: "12px", display: "block" }}>Accept</b>
-                <span style={{ fontSize: "10.5px", color: "#94a3b8" }}>Accept harmonized geometry</span>
-              </div>
+        {/* Right Column: Decision Controls */}
+        <div className="bf-card review-decision-col">
+          <form onSubmit={handleSubmit} style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+            <div className="review-col-header">
+              <span>Adjudication Decision</span>
             </div>
 
-            {/* Reject */}
-            <div
-              className={`decision-option-btn reject ${decision === "reject" ? "active" : ""}`}
-              onClick={() => setDecision("reject")}
-            >
-              <XCircle size={18} />
-              <div>
-                <b style={{ fontSize: "12px", display: "block" }}>Reject</b>
-                <span style={{ fontSize: "10.5px", color: "#94a3b8" }}>Keep original legal record only</span>
-              </div>
+            <div className="decision-radio-list">
+              <label className={`decision-radio-option ${decision === "accept" ? "checked" : ""}`}>
+                <input
+                  type="radio"
+                  name="decision"
+                  value="accept"
+                  checked={decision === "accept"}
+                  onChange={() => setDecision("accept")}
+                />
+                <span className="radio-circle" />
+                <span className="option-text">Accept AI Alignment</span>
+              </label>
+
+              <label className={`decision-radio-option ${decision === "adjust" ? "checked" : ""}`}>
+                <input
+                  type="radio"
+                  name="decision"
+                  value="adjust"
+                  checked={decision === "adjust"}
+                  onChange={() => setDecision("adjust")}
+                />
+                <span className="radio-circle" />
+                <span className="option-text">Adjust Boundary Vertices</span>
+              </label>
+
+              <label className={`decision-radio-option ${decision === "reject" ? "checked" : ""}`}>
+                <input
+                  type="radio"
+                  name="decision"
+                  value="reject"
+                  checked={decision === "reject"}
+                  onChange={() => setDecision("reject")}
+                />
+                <span className="radio-circle" />
+                <span className="option-text">Reject Match</span>
+              </label>
+
+              <label className={`decision-radio-option ${decision === "escalate" ? "checked" : ""}`}>
+                <input
+                  type="radio"
+                  name="decision"
+                  value="escalate"
+                  checked={decision === "escalate"}
+                  onChange={() => setDecision("escalate")}
+                />
+                <span className="radio-circle" />
+                <span className="option-text">Escalate to Appellate Officer</span>
+              </label>
+
+              <label className={`decision-radio-option ${decision === "field_verification" ? "checked" : ""}`}>
+                <input
+                  type="radio"
+                  name="decision"
+                  value="field_verification"
+                  checked={decision === "field_verification"}
+                  onChange={() => setDecision("field_verification")}
+                />
+                <span className="radio-circle" />
+                <span className="option-text"><strong>Request Field Verification</strong></span>
+              </label>
             </div>
 
-            {/* Adjust */}
-            <div
-              className={`decision-option-btn adjust ${decision === "adjust" ? "active" : ""}`}
-              onClick={() => setDecision("adjust")}
-            >
-              <Edit3 size={18} />
-              <div>
-                <b style={{ fontSize: "12px", display: "block" }}>Adjust</b>
-                <span style={{ fontSize: "10.5px", color: "#94a3b8" }}>Modify boundary vertices</span>
-              </div>
+            <div className="comments-input-group">
+              <label>Comments / Officer Remarks</label>
+              <textarea
+                className="bf-textarea"
+                rows={3}
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                placeholder="Enter adjudication remarks..."
+              />
             </div>
 
-            {/* Escalate */}
-            <div
-              className={`decision-option-btn escalate ${decision === "escalate" ? "active" : ""}`}
-              onClick={() => setDecision("escalate")}
-            >
-              <ArrowUpRight size={18} />
-              <div>
-                <b style={{ fontSize: "12px", display: "block" }}>Escalate</b>
-                <span style={{ fontSize: "10.5px", color: "#94a3b8" }}>Escalate to Senior Officer</span>
-              </div>
+            <div style={{ marginTop: "auto" }}>
+              {submitted ? (
+                <div className="submit-success-banner">
+                  <CheckCircle2 size={16} />
+                  <span>Decision recorded in SHA-256 ledger!</span>
+                </div>
+              ) : (
+                <button type="submit" className="btn-emerald" style={{ width: "100%", justifyContent: "center" }}>
+                  <span>Submit Decision</span>
+                  <ArrowRight size={14} />
+                </button>
+              )}
             </div>
-
-            {/* Do Not Decide */}
-            <div
-              className={`decision-option-btn dnd ${decision === "dnd" ? "active" : ""}`}
-              onClick={() => setDecision("dnd")}
-            >
-              <Clock size={18} />
-              <div>
-                <b style={{ fontSize: "12px", display: "block" }}>Do Not Decide</b>
-                <span style={{ fontSize: "10.5px", color: "#94a3b8" }}>Defer until field GNSS survey</span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: "11px", color: "#94a3b8", display: "block", marginBottom: "4px" }}>
-              Reviewer Notes
-            </label>
-            <textarea
-              className="decision-textarea"
-              placeholder="Add official notes regarding evidence reconciliation..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          <div style={{ fontSize: "10.5px", color: "#64748b", display: "flex", flexDirection: "column", gap: "2px" }}>
-            <div>Reviewer: <b style={{ color: "#cbd5e1" }}>Land Records Officer (AO)</b></div>
-            <div>Timestamp: <b style={{ color: "#cbd5e1" }}>{currentDateStr}</b></div>
-          </div>
-
-          <button
-            className="btn-emerald"
-            style={{ width: "100%", justifyContent: "center", marginTop: "auto" }}
-            onClick={handleSubmit}
-          >
-            <Send size={14} />
-            <span>{submitted ? "Decision Submitted ✓" : "Submit Decision"}</span>
-          </button>
+          </form>
         </div>
       </div>
     </div>
   );
 };
-

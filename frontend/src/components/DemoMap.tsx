@@ -5,11 +5,12 @@ type AnyObj = Record<string, any>;
 
 interface DemoMapProps {
   data: AnyObj;
-  mode: "default" | "source" | "extract" | "harmonized" | "discrepancy" | "review";
+  mode?: "default" | "source" | "extract" | "harmonized" | "discrepancy" | "review";
   compact?: boolean;
   darkBackground?: boolean;
   selectedParcelId?: string | null;
   onSelectParcel?: (parcelId: string) => void;
+  onParcelClick?: (parcelId: string) => void;
   opacityCadastral?: number;
   opacityDrone?: number;
   opacityMunicipal?: number;
@@ -19,16 +20,17 @@ interface DemoMapProps {
   showGNSS?: boolean;
   showHarmonized?: boolean;
   showResiduals?: boolean;
-  singleParcelFocus?: number;
+  singleParcelFocus?: number | string;
 }
 
 export const DemoMap: React.FC<DemoMapProps> = ({
   data,
-  mode,
+  mode = "default",
   compact = false,
   darkBackground = false,
   selectedParcelId,
   onSelectParcel,
+  onParcelClick,
   opacityCadastral = 0.75,
   opacityDrone = 0.75,
   opacityMunicipal = 0.6,
@@ -40,6 +42,10 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   showResiduals = false,
   singleParcelFocus,
 }) => {
+  const handleParcelClick = (id: string) => {
+    if (onParcelClick) onParcelClick(id);
+    else if (onSelectParcel) onSelectParcel(id);
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -361,7 +367,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
                   strokeDasharray={mode === "review" ? "6,3" : "none"}
                   onMouseEnter={() => setHoveredParcel(item.props)}
                   onMouseLeave={() => setHoveredParcel(null)}
-                  onClick={() => onSelectParcel && onSelectParcel(item.id)}
+                  onClick={() => handleParcelClick(item.id)}
                 />
               )}
 

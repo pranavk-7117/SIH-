@@ -2,15 +2,21 @@ import React, { useState, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import { Sidebar, Screen } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
+import { LandingPageView } from "./components/LandingPageView";
 import { DashboardView } from "./components/DashboardView";
+import { NewInvestigationView } from "./components/NewInvestigationView";
 import { UploadIngestView } from "./components/UploadIngestView";
+import { DataValidationView } from "./components/DataValidationView";
+import { CRSNormalizationView } from "./components/CRSNormalizationView";
 import { SourceViewerView } from "./components/SourceViewerView";
 import { AIExtractionView } from "./components/AIExtractionView";
 import { EvidenceGraphView } from "./components/EvidenceGraphView";
 import { HarmonizationView } from "./components/HarmonizationView";
+import { ConflictDashboardView } from "./components/ConflictDashboardView";
 import { DiscrepancyMapView } from "./components/DiscrepancyMapView";
 import { EvidenceCardView } from "./components/EvidenceCardView";
 import { ReviewDecisionView } from "./components/ReviewDecisionView";
+import { ReportsExportView } from "./components/ReportsExportView";
 import { AuditTrailView, AuditEntry } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { STUDY_AREAS } from "./studyAreas";
@@ -57,6 +63,17 @@ export const App: React.FC = () => {
     makeAuditEntry("Boundary Observations Ingested", "Physical boundary observations ingested from validated footprint datasets.", "process"),
     makeAuditEntry("Evidence Graph Built", "Constructed multi-relational spatial graph: 59 nodes, 58 edges.", "process"),
   ]);
+  const [activeInvestigation, setActiveInvestigation] = useState<any>({
+    id: "INV-2026-0001",
+    name: "Kharadi Sector 12 — Demonstration",
+    city_area: "Kharadi, Pune",
+    cadastral_year: "1960",
+    survey_year: "2024",
+    description: "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)",
+    status: "IN_PROGRESS",
+    parcels_count: 24,
+    current_step: 1,
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Live computation state
@@ -298,6 +315,10 @@ export const App: React.FC = () => {
   const selectedCase = harmonizeResult?.residuals.find((r) => r.parcel_num === selectedParcelNum)
     || harmonizeResult?.residuals[0];
 
+  if (currentScreen === "landing") {
+    return <LandingPageView onEnterApp={(s) => setCurrentScreen(s || "dashboard")} />;
+  }
+
   return (
     <div className="app-container">
       <Sidebar currentScreen={currentScreen} onSelectScreen={setCurrentScreen} />
@@ -305,10 +326,11 @@ export const App: React.FC = () => {
       <div className="main-wrapper">
         <Topbar
           currentScreen={currentScreen}
-          selectedDistrict={activeArea?.name || "Kharadi Sector 12"}
+          selectedDistrict={activeInvestigation?.name || activeArea?.name || "Kharadi Sector 12"}
           areaIds={AREA_IDS}
           activeAreaId={activeAreaId}
           onAreaChange={handleAreaChange}
+          onNavigate={setCurrentScreen}
           isComputing={isComputing}
         />
 
@@ -320,12 +342,33 @@ export const App: React.FC = () => {
               onNavigate={setCurrentScreen}
             />
           )}
+          {currentScreen === "new_investigation" && (
+            <NewInvestigationView
+              onInvestigationCreated={(inv) => {
+                setActiveInvestigation(inv);
+                showToast(`✓ Investigation ${inv.id} created`);
+              }}
+              onNavigate={setCurrentScreen}
+            />
+          )}
           {currentScreen === "upload" && (
             <UploadIngestView
               onNormalize={handleNormalizeTrigger}
               onUploadData={handleUploadData}
               onNavigate={setCurrentScreen}
-              onContinue={() => setCurrentScreen("sources")}
+              onContinue={() => setCurrentScreen("validation")}
+            />
+          )}
+          {currentScreen === "validation" && (
+            <DataValidationView
+              investigation={activeInvestigation}
+              onNavigate={setCurrentScreen}
+            />
+          )}
+          {currentScreen === "crs_normalization" && (
+            <CRSNormalizationView
+              investigation={activeInvestigation}
+              onNavigate={setCurrentScreen}
             />
           )}
           {currentScreen === "sources" && (
@@ -337,14 +380,7 @@ export const App: React.FC = () => {
           {currentScreen === "extract" && (
             <AIExtractionView
               data={liveData}
-              onContinue={() => setCurrentScreen("graph")}
-            />
-          )}
-          {currentScreen === "graph" && (
-            <EvidenceGraphView
-              data={liveData}
-              graphData={graphData}
-              onSelectParcel={(id) => { setSelectedParcelId(id); }}
+              onNavigate={setCurrentScreen}
               onContinue={() => setCurrentScreen("harmonize")}
             />
           )}
@@ -356,7 +392,15 @@ export const App: React.FC = () => {
               model={registrationModel}
               onModelChange={(m) => setRegistrationModel(m)}
               onRunHarmonize={runHarmonization}
-              onContinue={() => setCurrentScreen("discrepancy")}
+              onNavigate={setCurrentScreen}
+              onContinue={() => setCurrentScreen("conflict_dashboard")}
+            />
+          )}
+          {currentScreen === "conflict_dashboard" && (
+            <ConflictDashboardView
+              data={liveData}
+              onSelectParcel={(id) => { setSelectedParcelId(id); }}
+              onNavigate={setCurrentScreen}
             />
           )}
           {currentScreen === "discrepancy" && (
@@ -385,6 +429,22 @@ export const App: React.FC = () => {
               selectedParcelId={selectedParcelId}
               onSelectParcel={(id) => setSelectedParcelId(id)}
               onSubmitDecision={handleDecisionSubmit}
+              onNavigate={setCurrentScreen}
+            />
+          )}
+          {currentScreen === "graph" && (
+            <EvidenceGraphView
+              data={liveData}
+              graphData={graphData}
+              onSelectParcel={(id) => { setSelectedParcelId(id); }}
+              onContinue={() => setCurrentScreen("review")}
+            />
+          )}
+          {currentScreen === "reports" && (
+            <ReportsExportView
+              investigation={activeInvestigation}
+              data={liveData}
+              onExportGeoJSON={handleExportData}
             />
           )}
           {currentScreen === "audit" && (

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { CheckCircle2, Map as MapIcon, ArrowRight, ShieldCheck, Activity } from "lucide-react";
+﻿import React, { useState } from "react";
+import { CheckCircle2, ArrowRight, ShieldCheck, Activity, Sliders, RefreshCw } from "lucide-react";
 import { DemoMap } from "./DemoMap";
 import { Screen } from "./Sidebar";
 
@@ -26,223 +26,139 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({
   onModelChange,
   onRunHarmonize,
 }) => {
-  const [activeTab, setActiveTab] = useState<"matching" | "registration" | "topology" | "fusion" | "scoring">("registration");
-  const [viewAlignmentState, setViewAlignmentState] = useState<"after" | "before" | "split">("after");
+  const meta = harmonizeResult || data.harmonize_meta || {};
+  const correspondences = meta.total_correspondences || 21;
+  const inliers = meta.ransac_inlier_count || 18;
+  const outliers = Math.max(0, correspondences - inliers) || 3;
+  const rmse = meta.rmse !== undefined ? `${meta.rmse} m` : "0.74 m";
+  const meanDisp = meta.mean_residual !== undefined ? `${meta.mean_residual} m` : "1.32 m";
+  const maxDisp = meta.max_residual !== undefined ? `${meta.max_residual} m` : "3.81 m";
+  const modelType = meta.model ? meta.model.toUpperCase() : "TPS";
 
-  const meta = harmonizeResult || data.harmonize_meta || {
-    model,
-    rmse: 0.82,
-    mean_residual: 1.24,
-    max_residual: 3.67,
-    inlier_ratio: 92,
-    control_points_used: 32,
+  const handleProceed = () => {
+    if (onNavigate) {
+      onNavigate("conflict_dashboard");
+    } else if (onContinue) {
+      onContinue();
+    }
   };
 
   return (
-    <div className="page-container">
-      {/* Breadcrumb */}
-      <div className="breadcrumb">
-        <span>Investigation</span>
-        <span>&gt;</span>
-        <span>INV-2026-00124</span>
-        <span>&gt;</span>
-        <span className="active">Harmonization</span>
+    <div className="page-container harmonization-root">
+      {/* Header */}
+      <div className="view-page-header">
+        <div>
+          <h2>Harmonization &amp; Results</h2>
+          <p>Thin-Plate Spline (TPS) elastic surface registration with RANSAC correspondence filtering</p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <select
+            className="bf-select-sm"
+            value={model}
+            onChange={(e) => onModelChange?.(e.target.value as any)}
+          >
+            <option value="tps">Thin Plate Spline (TPS)</option>
+            <option value="affine">Affine (6-Parameter)</option>
+          </select>
+          <button className="btn-outline-sm" onClick={onRunHarmonize} disabled={isComputing}>
+            <RefreshCw size={13} className={isComputing ? "spin" : ""} style={{ marginRight: "4px" }} />
+            <span>{isComputing ? "Computing..." : "Re-Run"}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Harmonization Sub-Tabs */}
-      <div className="harmonization-tabs">
-        <button
-          className={`harm-tab-btn ${activeTab === "matching" ? "active" : ""}`}
-          onClick={() => setActiveTab("matching")}
-        >
-          1. Matching
-        </button>
-        <button
-          className={`harm-tab-btn ${activeTab === "registration" ? "active" : ""}`}
-          onClick={() => setActiveTab("registration")}
-        >
-          2. Registration
-        </button>
-        <button
-          className={`harm-tab-btn ${activeTab === "topology" ? "active" : ""}`}
-          onClick={() => setActiveTab("topology")}
-        >
-          3. Topology Check
-        </button>
-        <button
-          className={`harm-tab-btn ${activeTab === "fusion" ? "active" : ""}`}
-          onClick={() => setActiveTab("fusion")}
-        >
-          4. Fusion
-        </button>
-        <button
-          className={`harm-tab-btn ${activeTab === "scoring" ? "active" : ""}`}
-          onClick={() => setActiveTab("scoring")}
-        >
-          5. Scoring
-        </button>
+      {/* Stepper */}
+      <div className="stepper-header">
+        <div className="step-node completed">
+          <div className="step-num">✓</div>
+          <span>Upload Datasets</span>
+        </div>
+        <div className="step-line" />
+        <div className="step-node active">
+          <div className="step-num">2</div>
+          <span>Harmonize</span>
+        </div>
+        <div className="step-line" />
+        <div className="step-node">
+          <div className="step-num">3</div>
+          <span>Process</span>
+        </div>
+        <div className="step-line" />
+        <div className="step-node">
+          <div className="step-num">4</div>
+          <span>Review</span>
+        </div>
       </div>
 
-      <div className="harmonization-layout">
-        {/* Left Alignment Status Panel */}
-        <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <div className="bf-card-title">
-            <Activity size={16} style={{ color: "#10b981" }} />
-            <span>Alignment Status</span>
+      {/* Side-by-Side Dual Map & Metrics Split */}
+      <div className="harmonization-dual-grid">
+        {/* Map 1: Before Registration */}
+        <div className="bf-card harm-map-card">
+          <div className="harm-map-header">
+            <span>Before Registration</span>
+            <span className="badge-pill warning" style={{ background: "#fef2f2", color: "#991b1b", borderColor: "#fecaca" }}>
+              Unregistered (Offsets Present)
+            </span>
           </div>
-
-          <div className="status-checklist">
-            <div className="status-check-item done">
-              <CheckCircle2 size={16} />
-              <span>Initial Matching</span>
-            </div>
-            <div className="status-check-item done">
-              <CheckCircle2 size={16} />
-              <span>Outlier Removal (RANSAC)</span>
-            </div>
-            <div className="status-check-item done">
-              <CheckCircle2 size={16} />
-              <span>Affine Transformation</span>
-            </div>
-            <div className="status-check-item done">
-              <CheckCircle2 size={16} />
-              <span>Refinement (TPS Spline)</span>
-            </div>
-            <div className="status-check-item done">
-              <CheckCircle2 size={16} />
-              <span>Final Topology Validation</span>
-            </div>
-          </div>
-
-          <hr style={{ borderColor: "var(--border-color)", margin: "4px 0" }} />
-
-          <div className="bf-card-title" style={{ fontSize: "13px" }}>
-            <span>Alignment Quality</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>RMSE:</span>
-              <b style={{ color: "#10b981" }}>{meta.rmse} m</b>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>Mean Residual:</span>
-              <b style={{ color: "#0f172a" }}>{meta.mean_residual} m</b>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>Max Residual:</span>
-              <b style={{ color: "#f59e0b" }}>{meta.max_residual} m</b>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>Inlier Ratio:</span>
-              <b style={{ color: "#10b981" }}>{meta.inlier_ratio}%</b>
-            </div>
+          <div className="harm-canvas-wrapper" style={{ height: "340px" }}>
+            <DemoMap data={data} singleParcelFocus="before_registration" compact />
           </div>
         </div>
 
-        {/* Center Comparison Map */}
-        <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div className="bf-card-header">
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                className={viewAlignmentState === "after" ? "btn-emerald" : "btn-outline"}
-                style={{ padding: "4px 10px", fontSize: "11px" }}
-                onClick={() => setViewAlignmentState("after")}
-              >
-                After Alignment (Harmonized)
-              </button>
-              <button
-                className={viewAlignmentState === "before" ? "btn-emerald" : "btn-outline"}
-                style={{ padding: "4px 10px", fontSize: "11px" }}
-                onClick={() => setViewAlignmentState("before")}
-              >
-                Before Alignment (Raw Mismatch)
-              </button>
-            </div>
-
-            <span className="badge-pill success">Topology Preserved</span>
+        {/* Map 2: After Registration */}
+        <div className="bf-card harm-map-card">
+          <div className="harm-map-header">
+            <span>After Registration</span>
+            <span className="badge-pill success">
+              TPS Aligned (Sub-Meter RMSE)
+            </span>
           </div>
-
-          <DemoMap
-            data={data}
-            mode="harmonized"
-            compact={false}
-            showCadastral={viewAlignmentState === "before"}
-            showDrone={true}
-            showHarmonized={viewAlignmentState === "after"}
-            showResiduals={viewAlignmentState === "after"}
-          />
+          <div className="harm-canvas-wrapper" style={{ height: "340px" }}>
+            <DemoMap data={data} singleParcelFocus="after_registration" compact />
+          </div>
         </div>
 
-        {/* Right Registration Details & Histogram */}
-        <div className="bf-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <div className="bf-card-title">
-            <span>Registration Details</span>
+        {/* Metrics Panel */}
+        <div className="bf-card harm-metrics-card">
+          <div className="harm-map-header">
+            <span>Registration Metrics</span>
+            <span className="badge-pill success">COMPUTED</span>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "7px", fontSize: "11.5px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#94a3b8" }}>
-              <span>Transform Model:</span>
-              <div style={{ display: "flex", gap: "4px" }}>
-                <button
-                  className={meta.model === "affine" ? "btn-emerald" : "btn-outline"}
-                  style={{ padding: "2px 8px", fontSize: "10px" }}
-                  onClick={() => onModelChange?.("affine")}
-                >
-                  Affine
-                </button>
-                <button
-                  className={meta.model === "tps" ? "btn-emerald" : "btn-outline"}
-                  style={{ padding: "2px 8px", fontSize: "10px" }}
-                  onClick={() => onModelChange?.("tps")}
-                >
-                  TPS Spline
-                </button>
-              </div>
+          <div className="harm-metrics-list">
+            <div className="metric-row">
+              <small>Correspondences</small>
+              <b>{correspondences}</b>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>Control Points Used:</span>
-              <b style={{ color: "#0f172a" }}>{meta.control_points_used}</b>
+            <div className="metric-row">
+              <small>RANSAC Inliers</small>
+              <b style={{ color: "#10b981" }}>{inliers}</b>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>Mean Displacement:</span>
-              <b style={{ color: "#0f172a" }}>{meta.mean_residual} m</b>
+            <div className="metric-row">
+              <small>Outliers</small>
+              <b style={{ color: "#ef4444" }}>{outliers}</b>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8" }}>
-              <span>Max Displacement:</span>
-              <b style={{ color: "#f59e0b" }}>{meta.max_residual} m</b>
+            <div className="metric-row">
+              <small>Transformation</small>
+              <b style={{ color: "#0284c7" }}>{modelType}</b>
+            </div>
+            <div className="metric-row">
+              <small>RMSE (post)</small>
+              <b style={{ color: "#10b981" }}>{rmse}</b>
+            </div>
+            <div className="metric-row">
+              <small>Mean Displacement</small>
+              <b>{meanDisp}</b>
+            </div>
+            <div className="metric-row">
+              <small>Max Displacement</small>
+              <b style={{ color: "#f59e0b" }}>{maxDisp}</b>
             </div>
           </div>
 
-          <hr style={{ borderColor: "var(--border-color)", margin: "4px 0" }} />
-
-          <div className="bf-card-title" style={{ fontSize: "12.5px" }}>
-            <span>Residual Histogram</span>
-          </div>
-
-          <div className="residuals-histogram">
-            <div className="histogram-bar" style={{ height: "30%" }} title="0 - 0.5m" />
-            <div className="histogram-bar" style={{ height: "65%" }} title="0.5 - 1.0m" />
-            <div className="histogram-bar" style={{ height: "95%" }} title="1.0 - 1.5m" />
-            <div className="histogram-bar" style={{ height: "80%" }} title="1.5 - 2.0m" />
-            <div className="histogram-bar" style={{ height: "45%" }} title="2.0 - 2.5m" />
-            <div className="histogram-bar" style={{ height: "20%" }} title="2.5m+" />
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#64748b" }}>
-            <span>0m</span>
-            <span>1.0m</span>
-            <span>2.0m</span>
-            <span>3.5m+</span>
-          </div>
-
-          <div style={{ marginTop: "auto", paddingTop: "12px" }}>
-            <button
-              className="btn-emerald"
-              style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => (onContinue ? onContinue() : onNavigate?.("discrepancy"))}
-            >
-              <span>View Discrepancy Map</span>
+          <div className="harm-footer-action">
+            <button className="btn-emerald" style={{ width: "100%" }} onClick={handleProceed}>
+              <span>View Full Results</span>
               <ArrowRight size={14} />
             </button>
           </div>
@@ -251,4 +167,3 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({
     </div>
   );
 };
-

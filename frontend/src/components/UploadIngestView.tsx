@@ -304,19 +304,29 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
 
       {/* Stepper */}
       <div className="stepper-header">
-        <div className={`step-node ${currentStep >= 1 ? "active" : ""}`}>
+        <div className="step-node active">
           <div className="step-num">1</div>
-          <span>Active Ingestion</span>
+          <span>Upload Datasets</span>
         </div>
         <div className="step-line" />
-        <div className={`step-node ${currentStep >= 2 ? "active" : ""}`}>
+        <div className="step-node">
           <div className="step-num">2</div>
-          <span>Format Crosswalk</span>
+          <span>Validate</span>
         </div>
         <div className="step-line" />
-        <div className={`step-node ${currentStep >= 3 ? "active" : ""}`}>
+        <div className="step-node">
           <div className="step-num">3</div>
-          <span>CRS Normalization</span>
+          <span>Normalize</span>
+        </div>
+        <div className="step-line" />
+        <div className="step-node">
+          <div className="step-num">4</div>
+          <span>Process</span>
+        </div>
+        <div className="step-line" />
+        <div className="step-node">
+          <div className="step-num">5</div>
+          <span>Review</span>
         </div>
       </div>
 
@@ -694,8 +704,8 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
           <button className="btn-outline" onClick={handleNormalize}>
             {normalized ? "✓ CRS Normalized to WGS84" : "Normalize All CRS"}
           </button>
-          <button className="btn-emerald" onClick={() => (onContinue ? onContinue() : onNavigate?.("sources"))}>
-            <span>Next: Source Details</span>
+          <button className="btn-emerald" onClick={() => (onNavigate ? onNavigate("validation") : onContinue?.())}>
+            <span>Proceed to Validation</span>
             <ArrowRight size={14} />
           </button>
         </div>

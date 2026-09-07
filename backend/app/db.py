@@ -40,9 +40,32 @@ def init_db() -> None:
         id TEXT PRIMARY KEY,
         area_id TEXT NOT NULL,
         area_name TEXT NOT NULL,
+        city_area TEXT DEFAULT 'Kharadi, Pune',
+        cadastral_year TEXT DEFAULT '1960',
+        survey_year TEXT DEFAULT '2024',
+        description TEXT DEFAULT '',
         status TEXT DEFAULT 'IN_PROGRESS',
         parcels_count INTEGER DEFAULT 24,
+        current_step INTEGER DEFAULT 1,
         created_at TEXT NOT NULL
+    );
+    """)
+
+    # Investigation Sources — per-investigation uploaded datasets
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS investigation_sources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        investigation_id TEXT NOT NULL,
+        source_key TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        file_format TEXT NOT NULL,
+        original_crs TEXT NOT NULL DEFAULT 'EPSG:4326',
+        target_crs TEXT NOT NULL DEFAULT 'EPSG:32643',
+        features_count INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'VALID',
+        data_json TEXT,
+        uploaded_at TEXT NOT NULL,
+        UNIQUE(investigation_id, source_key)
     );
     """)
 
@@ -102,6 +125,18 @@ def init_db() -> None:
         print(f"Notice: R-Tree virtual table initialization: {e}")
 
     # Check and alter tables if columns are missing from earlier migration
+    cursor.execute("PRAGMA table_info(investigations)")
+    inv_cols = [c[1] for c in cursor.fetchall()]
+    for col, col_def in [
+        ("city_area", "TEXT DEFAULT 'Kharadi, Pune'"),
+        ("cadastral_year", "TEXT DEFAULT '1960'"),
+        ("survey_year", "TEXT DEFAULT '2024'"),
+        ("description", "TEXT DEFAULT ''"),
+        ("current_step", "INTEGER DEFAULT 1"),
+    ]:
+        if col not in inv_cols:
+            cursor.execute(f"ALTER TABLE investigations ADD COLUMN {col} {col_def}")
+
     cursor.execute("PRAGMA table_info(review_decisions)")
     rd_cols = [c[1] for c in cursor.fetchall()]
     if "row_hash" not in rd_cols:
@@ -112,16 +147,34 @@ def init_db() -> None:
     if "row_hash" not in al_cols:
         cursor.execute("ALTER TABLE audit_logs ADD COLUMN row_hash TEXT NOT NULL DEFAULT ''")
 
-    # Seed investigations if empty
-    cursor.execute("SELECT COUNT(*) FROM investigations")
+    # Seed investigations if empty or missing INV-2026-0001
+    cursor.execute("SELECT COUNT(*) FROM investigations WHERE id = 'INV-2026-0001'")
     if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            """INSERT OR REPLACE INTO investigations
+               (id, area_id, area_name, city_area, cadastral_year, survey_year, description, status, parcels_count, current_step, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("INV-2026-0001", "pune_kharadi", "Kharadi Sector 12 — Demonstration", "Kharadi, Pune", "1960", "2024",
+             "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)",
+             "IN_PROGRESS", 24, 1, "2026-09-02T10:00:00Z"),
+        )
+        # Seed 9 baseline demonstration source entries for INV-2026-0001
+        demo_sources = [
+            ("INV-2026-0001", "cadastral", "cadastral_1960.geojson", "GeoJSON", "EPSG:4326", "EPSG:32643", 24, "VALID", "2026-09-02T10:01:00Z"),
+            ("INV-2026-0001", "drone", "kharadi_ortho_2024.tif", "GeoTIFF", "EPSG:32643", "EPSG:32643", 1, "VALID", "2026-09-02T10:02:00Z"),
+            ("INV-2026-0001", "dsm", "dsm_dtm.tif", "GeoTIFF", "EPSG:32643", "EPSG:32643", 1, "VALID", "2026-09-02T10:03:00Z"),
+            ("INV-2026-0001", "gnss", "gnss_2024.csv", "CSV", "WGS84", "EPSG:32643", 8, "VALID", "2026-09-02T10:04:00Z"),
+            ("INV-2026-0001", "municipal", "municipal.gpkg", "GPKG", "EPSG:32643", "EPSG:32643", 36, "VALID", "2026-09-02T10:05:00Z"),
+            ("INV-2026-0001", "revenue", "revenue_7_12.csv", "CSV", "-", "Attribute only", 24, "VALID", "2026-09-02T10:06:00Z"),
+            ("INV-2026-0001", "utility", "utility.gpkg", "GPKG", "EPSG:32643", "EPSG:32643", 18, "VALID", "2026-09-02T10:07:00Z"),
+            ("INV-2026-0001", "buildings", "buildings.geojson", "GeoJSON", "EPSG:32643", "EPSG:32643", 24, "VALID", "2026-09-02T10:08:00Z"),
+            ("INV-2026-0001", "ground_truth", "ground_truth.csv", "CSV", "WGS84", "EPSG:32643", 10, "VALID", "2026-09-02T10:09:00Z"),
+        ]
         cursor.executemany(
-            "INSERT INTO investigations (id, area_id, area_name, status, parcels_count, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                ("INV-2026-00124", "pune_kharadi", "Kharadi Sector 12, Pune", "IN_PROGRESS", 24, "2026-09-02T10:30:00Z"),
-                ("INV-2026-00123", "pmrda_wagholi", "Wagholi Peri-Urban Village, PMRDA", "IN_PROGRESS", 24, "2026-09-03T09:15:00Z"),
-                ("INV-2026-00122", "pcmc_hinjawadi", "Hinjawadi Phase 3 IT Corridor, PCMC", "COMPLETED", 24, "2026-09-01T14:20:00Z"),
-            ],
+            """INSERT OR REPLACE INTO investigation_sources
+               (investigation_id, source_key, filename, file_format, original_crs, target_crs, features_count, status, uploaded_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            demo_sources
         )
 
     # Seed audit logs with hash chain if empty or missing row_hash
@@ -328,3 +381,124 @@ def query_candidates_rtree(min_x: float, max_x: float, min_y: float, max_y: floa
         return []
     finally:
         conn.close()
+
+
+# ── Investigation CRUD Helpers ─────────────────────────────────────────────
+def create_investigation(
+    inv_id: str,
+    name: str,
+    city_area: str = "Kharadi, Pune",
+    cadastral_year: str = "1960",
+    survey_year: str = "2024",
+    description: str = "",
+    parcels_count: int = 24,
+) -> dict[str, Any]:
+    conn = get_db()
+    cursor = conn.cursor()
+    ts = datetime.now(timezone.utc).isoformat()
+    cursor.execute(
+        """INSERT OR REPLACE INTO investigations
+           (id, area_id, area_name, city_area, cadastral_year, survey_year, description, status, parcels_count, current_step, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (inv_id, "pune_kharadi", name, city_area, cadastral_year, survey_year, description, "IN_PROGRESS", parcels_count, 1, ts),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "id": inv_id,
+        "name": name,
+        "city_area": city_area,
+        "cadastral_year": cadastral_year,
+        "survey_year": survey_year,
+        "description": description,
+        "parcels_count": parcels_count,
+        "current_step": 1,
+        "created_at": ts,
+    }
+
+
+def get_investigations() -> list[dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM investigations ORDER BY created_at DESC")
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_investigation(inv_id: str) -> dict[str, Any] | None:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM investigations WHERE id = ?", (inv_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return None
+    inv = dict(row)
+    cursor.execute("SELECT * FROM investigation_sources WHERE investigation_id = ?", (inv_id,))
+    sources = [dict(r) for r in cursor.fetchall()]
+    inv["sources"] = {s["source_key"]: s for s in sources}
+    inv["sources_list"] = sources
+    conn.close()
+    return inv
+
+
+def update_investigation_step(inv_id: str, step: int) -> None:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE investigations SET current_step = MAX(current_step, ?) WHERE id = ?", (step, inv_id))
+    conn.commit()
+    conn.close()
+
+
+def upsert_investigation_source(
+    inv_id: str,
+    source_key: str,
+    filename: str,
+    file_format: str,
+    original_crs: str = "EPSG:4326",
+    target_crs: str = "EPSG:32643",
+    features_count: int = 0,
+    status: str = "VALID",
+    data_json: str | None = None,
+) -> dict[str, Any]:
+    conn = get_db()
+    cursor = conn.cursor()
+    ts = datetime.now(timezone.utc).isoformat()
+    cursor.execute(
+        """INSERT INTO investigation_sources
+           (investigation_id, source_key, filename, file_format, original_crs, target_crs, features_count, status, data_json, uploaded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(investigation_id, source_key) DO UPDATE SET
+               filename = excluded.filename,
+               file_format = excluded.file_format,
+               original_crs = excluded.original_crs,
+               target_crs = excluded.target_crs,
+               features_count = excluded.features_count,
+               status = excluded.status,
+               data_json = excluded.data_json,
+               uploaded_at = excluded.uploaded_at""",
+        (inv_id, source_key, filename, file_format, original_crs, target_crs, features_count, status, data_json, ts),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "investigation_id": inv_id,
+        "source_key": source_key,
+        "filename": filename,
+        "file_format": file_format,
+        "original_crs": original_crs,
+        "target_crs": target_crs,
+        "features_count": features_count,
+        "status": status,
+        "uploaded_at": ts,
+    }
+
+
+def get_investigation_sources(inv_id: str) -> dict[str, dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM investigation_sources WHERE investigation_id = ?", (inv_id,))
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return {r["source_key"]: r for r in rows}

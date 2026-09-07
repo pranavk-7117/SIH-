@@ -1,8 +1,7 @@
-import React, { useState } from "react";
-import { Search, Bell, Loader2, Download, Building } from "lucide-react";
+﻿import React from "react";
+import { Search, Bell, Plus, Loader2 } from "lucide-react";
 import { Screen } from "./Sidebar";
 import { STUDY_AREAS } from "../studyAreas";
-import { api } from "../api/client";
 
 interface TopbarProps {
   currentScreen: Screen;
@@ -10,6 +9,7 @@ interface TopbarProps {
   areaIds: string[];
   activeAreaId: string;
   onAreaChange: (areaId: string) => void;
+  onNavigate?: (screen: Screen) => void;
   isComputing?: boolean;
 }
 
@@ -19,56 +19,51 @@ export const Topbar: React.FC<TopbarProps> = ({
   areaIds,
   activeAreaId,
   onAreaChange,
+  onNavigate,
   isComputing = false,
 }) => {
-  const [showDeptMenu, setShowDeptMenu] = useState(false);
-
   const getScreenTitle = () => {
     switch (currentScreen) {
+      case "landing":
+        return { title: "BHUMI-FUSE Portal", subtitle: "AI-Enabled Geospatial Integration for Urban Land Governance" };
       case "dashboard":
-        return { title: "Dashboard", subtitle: "Overview of your investigations and system summary" };
+        return { title: "Dashboard", subtitle: "Overview of your land harmonization projects · NAKSHA" };
+      case "new_investigation":
+        return { title: "New Investigation", subtitle: "Create a new land harmonization project" };
       case "upload":
-        return { title: "Upload & Ingest Sources", subtitle: "Upload multiple geospatial data sources to start harmonization" };
+        return { title: "Upload & Ingest Datasets", subtitle: "Bring all spatial and non-spatial evidence into one investigation" };
+      case "validation":
+        return { title: "Data Validation", subtitle: "Multi-source structural & topological validation summary" };
+      case "crs_normalization":
+        return { title: "CRS Normalization", subtitle: "Coordinate Reference System alignment to standard projection" };
+      case "extract":
+        return { title: "AI Feature Extraction", subtitle: "Automated building footprint and physical boundary extraction" };
       case "sources":
         return { title: "Source Viewer", subtitle: "Preview and compare uploaded sources side-by-side" };
-      case "extract":
-        return { title: "Boundary Observation Ingestion", subtitle: "Physical boundary contours ingested from drone and OSM footprint datasets" };
-      case "graph":
-        return { title: "Spatial Evidence Graph", subtitle: "Live multi-relational graph connecting parcels, physical boundaries, GNSS, and roads" };
       case "harmonize":
-        return { title: "Harmonization & Alignment", subtitle: "Live Affine/TPS registration with RANSAC outlier rejection and topology validation" };
+        return { title: "Harmonization & Results", subtitle: "Thin-Plate Spline (TPS) registration & RANSAC correspondence filtering" };
+      case "conflict_dashboard":
+        return { title: "Conflict Dashboard", subtitle: "Evidence-driven review of spatial and legal discrepancies" };
       case "discrepancy":
-        return { title: "Legal vs Physical Discrepancy Map", subtitle: "Conflict heatmap ranking parcels by legal-to-physical displacement magnitude" };
+        return { title: "Discrepancy Map", subtitle: "Spatial displacement heatmap and legal mismatch visualizer" };
       case "evidence":
-        return { title: "Evidence Card & Recommendation", subtitle: "Multi-source evidence breakdown, trust scores, and non-spatial revenue integration" };
+        return { title: "Evidence Cards", subtitle: "Multi-source evidence breakdown & trust scores" };
+      case "graph":
+        return { title: "AI Feature Graph", subtitle: "Interactive multi-relational spatial evidence graph" };
       case "review":
-        return { title: "Review & Decision", subtitle: "Authorized officer adjudication with versioned audit capture" };
+        return { title: "Review & Decision", subtitle: "Authorized officer adjudication with court-admissible audit capture" };
+      case "reports":
+        return { title: "Reports & Export", subtitle: "Authoritative harmonized land governance download packages" };
       case "audit":
-        return { title: "Audit Trail & Provenance", subtitle: "Tamper-evident append-only ledger with SHA-256 hash chaining" };
+        return { title: "Audit Trail", subtitle: "Tamper-evident append-only ledger with SHA-256 hash chaining" };
       case "settings":
-        return { title: "System Configuration", subtitle: "Configure authority weights, thresholds, and registration model" };
+        return { title: "Settings", subtitle: "System authority weights, Do-Not-Decide thresholds & models" };
       default:
-        return { title: "BHUMI-FUSE", subtitle: "AI-Driven Multi-Source Land Record Harmonization Engine" };
+        return { title: "BHUMI-FUSE", subtitle: "AI Land Harmonization Engine" };
     }
   };
 
   const { title, subtitle } = getScreenTitle();
-
-  const handleDeptExport = async (deptId: string) => {
-    setShowDeptMenu(false);
-    const data = await api.getDepartmentExport(deptId, activeAreaId);
-    if (!data) {
-      alert(`Exporting ${deptId.toUpperCase()} schema for ${activeAreaId}... (Fallback JSON generated)`);
-      return;
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `bhumi_fuse_${deptId}_schema_${activeAreaId}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <header className="topbar">
@@ -78,150 +73,51 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="topbar-right">
-        {/* Live computation indicator */}
         {isComputing && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#059669", fontWeight: 700 }}>
-            <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+          <div className="computing-badge">
+            <Loader2 size={14} className="spin" />
             <span>Computing…</span>
           </div>
         )}
 
-        {/* Study Area Dropdown — triggers live re-computation */}
-        <select
-          className="topbar-selector"
-          value={activeAreaId}
-          onChange={(e) => onAreaChange(e.target.value)}
-          style={{ minWidth: "220px" }}
-        >
-          {areaIds.map((id) => (
-            <option key={id} value={id}>
-              {STUDY_AREAS[id]?.name || id} — {STUDY_AREAS[id]?.city || ""}
-            </option>
-          ))}
-        </select>
-
-        {/* Export Harmonized GeoJSON Button */}
-        <a
-          href={`/datasets/${activeAreaId}_dataset.geojson`}
-          download={`bhumi_fuse_${activeAreaId}_dataset.geojson`}
-          className="btn-emerald"
-          style={{ textDecoration: "none", padding: "6px 12px", fontSize: "11.5px", display: "flex", alignItems: "center", gap: "5px" }}
-          title={`Download full GeoJSON dataset for ${STUDY_AREAS[activeAreaId]?.name || activeAreaId}`}
-        >
-          <Download size={13} />
-          <span>Export GeoJSON</span>
-        </a>
-
-        {/* Inter-Departmental Exchange Button & Dropdown (PS-26013) */}
-        <div style={{ position: "relative" }}>
-          <button
-            className="btn-outline"
-            style={{ padding: "6px 10px", fontSize: "11.5px", display: "flex", alignItems: "center", gap: "5px" }}
-            onClick={() => setShowDeptMenu((prev) => !prev)}
-            title="Export reshaped schema for inter-departmental data exchange"
+        {/* Location / Search Box */}
+        <div className="topbar-search-box">
+          <Search size={14} className="search-icon" />
+          <select
+            className="topbar-area-dropdown"
+            value={activeAreaId}
+            onChange={(e) => onAreaChange(e.target.value)}
           >
-            <Building size={13} />
-            <span>Dept Schema ▾</span>
-          </button>
-
-          {showDeptMenu && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: "4px",
-                background: "#ffffff",
-                border: "1px solid #cbd5e1",
-                borderRadius: "8px",
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-                zIndex: 50,
-                minWidth: "210px",
-                overflow: "hidden",
-              }}
-            >
-              <button
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  textAlign: "left",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  color: "#0f172a",
-                  display: "flex",
-                  flexDirection: "column",
-                  borderBottom: "1px solid #f1f5f9",
-                }}
-                onClick={() => handleDeptExport("revenue")}
-              >
-                <b>Revenue Department</b>
-                <small style={{ color: "#64748b", fontSize: "10.5px" }}>patta_holder, ksetra_phal, sarvekshan</small>
-              </button>
-
-              <button
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  textAlign: "left",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  color: "#0f172a",
-                  display: "flex",
-                  flexDirection: "column",
-                  borderBottom: "1px solid #f1f5f9",
-                }}
-                onClick={() => handleDeptExport("municipal")}
-              >
-                <b>Municipal Corporation</b>
-                <small style={{ color: "#64748b", fontSize: "10.5px" }}>property_owner, plot_area, zone_class</small>
-              </button>
-
-              <button
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  textAlign: "left",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  color: "#0f172a",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-                onClick={() => handleDeptExport("pmrda")}
-              >
-                <b>PMRDA Regional Auth</b>
-                <small style={{ color: "#64748b", fontSize: "10.5px" }}>pattadar, plot_area_sqm, land_cat</small>
-              </button>
-            </div>
-          )}
+            {areaIds.map((id) => (
+              <option key={id} value={id}>
+                {STUDY_AREAS[id]?.name || id}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <button
-          className="topbar-icon-btn"
-          title="Search records"
-          onClick={() => alert("Search indexed parcels and survey numbers")}
-        >
-          <Search size={16} />
-        </button>
-
-        <button
-          className="topbar-icon-btn"
-          title="High-priority notifications"
-          onClick={() => alert("3 high-priority discrepancies require officer review")}
-        >
+        {/* Notification Bell */}
+        <button className="topbar-icon-btn" title="Notifications">
           <Bell size={16} />
           <span className="notif-badge">3</span>
         </button>
 
-        <div className="user-avatar" style={{ width: "32px", height: "32px", cursor: "pointer" }}>
-          AO
+        {/* User profile pill */}
+        <div className="topbar-user-pill">
+          <div className="avatar-dot">NR</div>
+          <div className="user-text">
+            <b>Nitin R.</b>
+            <small>Land Records Officer</small>
+          </div>
         </div>
+
+        {/* + New Investigation Button */}
+        {currentScreen !== "new_investigation" && onNavigate && (
+          <button className="btn-emerald-sm" onClick={() => onNavigate("new_investigation")}>
+            <Plus size={14} />
+            <span>New Investigation</span>
+          </button>
+        )}
       </div>
     </header>
   );

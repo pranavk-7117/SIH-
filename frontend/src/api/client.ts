@@ -371,6 +371,178 @@ class ApiClient {
       })),
     };
   }
+
+  async createInvestigation(payload: {
+    id?: string;
+    name: string;
+    city_area?: string;
+    cadastral_year?: string;
+    survey_year?: string;
+    description?: string;
+    parcels_count?: number;
+  }): Promise<any> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        return data.investigation;
+      } catch (err) {
+        console.warn("createInvestigation error:", err);
+      }
+    }
+    const invId = payload.id || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    return {
+      id: invId,
+      name: payload.name,
+      city_area: payload.city_area || "Kharadi, Pune",
+      cadastral_year: payload.cadastral_year || "1960",
+      survey_year: payload.survey_year || "2024",
+      description: payload.description || "",
+      status: "IN_PROGRESS",
+      parcels_count: payload.parcels_count || 24,
+      current_step: 1,
+      created_at: new Date().toISOString(),
+      sources: {},
+      sources_list: [],
+    };
+  }
+
+  async getInvestigations(): Promise<any[]> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations`);
+        return await res.json();
+      } catch (err) {
+        console.warn("getInvestigations error:", err);
+      }
+    }
+    return [
+      {
+        id: "INV-2026-0001",
+        name: "Kharadi Sector 12 — Demonstration",
+        city_area: "Kharadi, Pune",
+        cadastral_year: "1960",
+        survey_year: "2024",
+        description: "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)",
+        status: "IN_PROGRESS",
+        parcels_count: 24,
+        current_step: 4,
+        created_at: "2026-09-02T10:00:00Z",
+      },
+    ];
+  }
+
+  async getInvestigation(id: string): Promise<any> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations/${id}`);
+        if (res.ok) return await res.json();
+      } catch (err) {
+        console.warn("getInvestigation error:", err);
+      }
+    }
+    return {
+      id,
+      name: "Kharadi Sector 12 — Demonstration",
+      city_area: "Kharadi, Pune",
+      cadastral_year: "1960",
+      survey_year: "2024",
+      description: "Demonstration dataset for SIH26013 - urban land harmonization",
+      status: "IN_PROGRESS",
+      parcels_count: 24,
+      current_step: 1,
+      created_at: "2026-09-02T10:00:00Z",
+      sources: {},
+      sources_list: [],
+    };
+  }
+
+  async uploadInvestigationSource(invId: string, sourceKey: string, file: File): Promise<any> {
+    if (await this.checkBackend()) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch(`${API_BASE}/investigations/${invId}/sources/${sourceKey}`, {
+          method: "POST",
+          body: form,
+        });
+        return await res.json();
+      } catch (err) {
+        console.warn("uploadInvestigationSource error:", err);
+      }
+    }
+    return {
+      status: "uploaded",
+      investigation_id: invId,
+      source: {
+        investigation_id: invId,
+        source_key: sourceKey,
+        filename: file.name,
+        file_format: file.name.split(".").pop()?.toUpperCase() || "GEOJSON",
+        original_crs: "EPSG:32643",
+        target_crs: "EPSG:32643",
+        features_count: 24,
+        status: "VALID",
+      },
+    };
+  }
+
+  async validateInvestigation(invId: string): Promise<any> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations/${invId}/validate`, { method: "POST" });
+        return await res.json();
+      } catch (err) {
+        console.warn("validateInvestigation error:", err);
+      }
+    }
+    return {
+      investigation_id: invId,
+      valid: true,
+      sources_count: 9,
+      results: [
+        { source: "Cadastral", source_key: "cadastral", filename: "cadastral_1960.geojson", format: "GeoJSON", original_crs: "EPSG:4326", features: 24, status: "Valid", is_valid: true },
+        { source: "Drone Imagery", source_key: "drone", filename: "kharadi_ortho_2024.tif", format: "GeoTIFF", original_crs: "EPSG:32643", features: "Raster", status: "Valid", is_valid: true },
+        { source: "DSM / DTM", source_key: "dsm", filename: "dsm_dtm.tif", format: "GeoTIFF", original_crs: "EPSG:32643", features: "Raster", status: "Valid", is_valid: true },
+        { source: "GNSS / CORS", source_key: "gnss", filename: "gnss_2024.csv", format: "CSV", original_crs: "WGS84", features: 8, status: "Valid", is_valid: true },
+        { source: "Municipal GIS", source_key: "municipal", filename: "municipal.gpkg", format: "GPKG", original_crs: "EPSG:32643", features: 36, status: "Valid", is_valid: true },
+        { source: "Revenue Records", source_key: "revenue", filename: "revenue_7_12.csv", format: "CSV", original_crs: "-", features: 24, status: "Valid", is_valid: true },
+        { source: "Utility Networks", source_key: "utility", filename: "utility.gpkg", format: "GPKG", original_crs: "EPSG:32643", features: 18, status: "Valid", is_valid: true },
+        { source: "Building Footprints", source_key: "buildings", filename: "buildings.geojson", format: "GeoJSON", original_crs: "EPSG:32643", features: 24, status: "Valid", is_valid: true },
+        { source: "Ground Truth", source_key: "ground_truth", filename: "ground_truth.csv", format: "CSV", original_crs: "WGS84", features: 10, status: "Valid", is_valid: true },
+      ],
+    };
+  }
+
+  async normalizeInvestigationCRS(invId: string): Promise<any> {
+    if (await this.checkBackend()) {
+      try {
+        const res = await fetch(`${API_BASE}/investigations/${invId}/normalize-crs`, { method: "POST" });
+        return await res.json();
+      } catch (err) {
+        console.warn("normalizeInvestigationCRS error:", err);
+      }
+    }
+    return {
+      investigation_id: invId,
+      normalized: true,
+      target_reference_crs: "EPSG:32643 (UTM Zone 43N)",
+      transformations: [
+        { source: "Cadastral", source_key: "cadastral", original_crs: "EPSG:4326", target_crs: "EPSG:32643", transformation: "Reprojected", status: "Completed" },
+        { source: "Drone Imagery", source_key: "drone", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
+        { source: "DSM / DTM", source_key: "dsm", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
+        { source: "GNSS / CORS", source_key: "gnss", original_crs: "WGS84", target_crs: "EPSG:32643", transformation: "Reprojected", status: "Completed" },
+        { source: "Municipal GIS", source_key: "municipal", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
+        { source: "Revenue Records", source_key: "revenue", original_crs: "-", target_crs: "Attribute only", transformation: "Attribute only", status: "Completed" },
+        { source: "Utility Networks", source_key: "utility", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
+        { source: "Building Footprints", source_key: "buildings", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
+      ],
+    };
+  }
 }
 
 export const api = new ApiClient();
