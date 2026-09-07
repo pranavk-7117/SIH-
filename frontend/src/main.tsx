@@ -57,23 +57,9 @@ export const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [selectedParcelId, setSelectedParcelId] = useState<string>("parcel-101");
   const [activeAreaId, setActiveAreaId] = useState<string>("pune_kharadi");
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([
-    makeAuditEntry("Sources Ingested", "Ingested 4 files (Cadastral SHP, Drone GeoTIFF, GNSS CSV, Municipal GPKG).", "upload"),
-    makeAuditEntry("CRS Normalized", "Normalized all layers from EPSG:32643 (UTM Zone 43N) → EPSG:4326 (WGS84).", "process"),
-    makeAuditEntry("Boundary Observations Ingested", "Physical boundary observations ingested from validated footprint datasets.", "process"),
-    makeAuditEntry("Evidence Graph Built", "Constructed multi-relational spatial graph: 59 nodes, 58 edges.", "process"),
-  ]);
-  const [activeInvestigation, setActiveInvestigation] = useState<any>({
-    id: "INV-2026-0001",
-    name: "Kharadi Sector 12 — Demonstration",
-    city_area: "Kharadi, Pune",
-    cadastral_year: "1960",
-    survey_year: "2024",
-    description: "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)",
-    status: "IN_PROGRESS",
-    parcels_count: 24,
-    current_step: 1,
-  });
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [activeInvestigation, setActiveInvestigation] = useState<any>(null);
+  const [uploadedSources, setUploadedSources] = useState<any[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Live computation state
@@ -146,10 +132,12 @@ export const App: React.FC = () => {
     }
   }, [activeAreaId, registrationModel, authorityWeights, dndThreshold, customLayers]);
 
-  // Run on mount and when area/model/weights change
+  // Run on mount only when active investigation or uploaded data exists
   useEffect(() => {
-    runHarmonization();
-  }, [activeAreaId, registrationModel]);
+    if (activeInvestigation || Object.keys(customLayers).length > 0) {
+      runHarmonization();
+    }
+  }, [activeAreaId, registrationModel, activeInvestigation]);
 
   // ── Area Switching ─────────────────────────────────────────────────────
   const handleAreaChange = (areaId: string) => {
@@ -251,6 +239,20 @@ export const App: React.FC = () => {
       [layerType]: geojson,
     };
     setCustomLayers(updatedCustom);
+
+    const newSource = {
+      source: layerType.charAt(0).toUpperCase() + layerType.slice(1),
+      file: meta?.filename || `${layerType}_upload.${meta?.file_format || "geojson"}`,
+      format: meta?.file_format?.toUpperCase() || (meta?.filename?.endsWith(".csv") ? "CSV" : meta?.filename?.endsWith(".tif") ? "GeoTIFF" : "GeoJSON"),
+      crs: meta?.crs || (layerType === "revenue" ? "-" : "EPSG:4326"),
+      features: String(meta?.features || meta?.feature_count || meta?.points_parsed || (geojson?.features?.length || 1)),
+      status: "Valid" as const,
+    };
+    setUploadedSources((prev) => {
+      const filtered = prev.filter((s) => s.source.toLowerCase() !== layerType.toLowerCase());
+      return [...filtered, newSource];
+    });
+
     addAuditEntry(
       makeAuditEntry(
         `Custom ${layerType.toUpperCase()} Ingested`,
@@ -261,6 +263,14 @@ export const App: React.FC = () => {
     showToast(`✓ Ingested custom ${layerType} dataset — updating session and re-harmonizing...`);
     runHarmonization({ customLayers: updatedCustom });
   };
+
+  const crsRows = uploadedSources.map((s) => ({
+    source: s.source,
+    orig: s.crs,
+    target: s.crs === "-" ? "Attribute only" : "EPSG:32643",
+    trans: s.crs === "-" ? "Attribute only" : s.crs === "EPSG:32643" ? "No change" : "Reprojected",
+    status: "Completed",
+  }));
 
   // Compute dynamic bounds from uploaded cadastral so map re-centers on user data
   const computeBoundsFromFC = (fc: any): [number, number, number, number] | null => {
@@ -281,13 +291,16 @@ export const App: React.FC = () => {
     ? [(uploadedBounds[0] + uploadedBounds[2]) / 2, (uploadedBounds[1] + uploadedBounds[3]) / 2]
     : null;
 
+  const hasActiveSession = Boolean(activeInvestigation || Object.keys(customLayers).length > 0);
+
   // Build data bundle for views from live results
   const liveData = {
-    ...activeArea,
-    cadastral: customLayers.cadastral || activeArea?.cadastral,
-    buildings: customLayers.buildings || activeArea?.buildings,
-    control: customLayers.control || activeArea?.control,
-    municipal: customLayers.municipal || activeArea?.municipal,
+    ...(hasActiveSession ? activeArea : {}),
+    name: activeInvestigation?.name || null,
+    cadastral: customLayers.cadastral || (hasActiveSession ? activeArea?.cadastral : { type: "FeatureCollection", features: [] }),
+    buildings: customLayers.buildings || (hasActiveSession ? activeArea?.buildings : { type: "FeatureCollection", features: [] }),
+    control: customLayers.control || (hasActiveSession ? activeArea?.control : { type: "FeatureCollection", features: [] }),
+    municipal: customLayers.municipal || (hasActiveSession ? activeArea?.municipal : { type: "FeatureCollection", features: [] }),
     // Override map center/bounds when user uploads data from a different area
     ...(uploadedBounds ? { bounds: uploadedBounds } : {}),
     ...(uploadedCenter ? { center: uploadedCenter } : {}),
@@ -326,7 +339,7 @@ export const App: React.FC = () => {
       <div className="main-wrapper">
         <Topbar
           currentScreen={currentScreen}
-          selectedDistrict={activeInvestigation?.name || activeArea?.name || "Kharadi Sector 12"}
+          selectedDistrict={activeInvestigation?.name || "BHUMI-FUSE"}
           areaIds={AREA_IDS}
           activeAreaId={activeAreaId}
           onAreaChange={handleAreaChange}
@@ -362,12 +375,14 @@ export const App: React.FC = () => {
           {currentScreen === "validation" && (
             <DataValidationView
               investigation={activeInvestigation}
+              uploadedFiles={uploadedSources}
               onNavigate={setCurrentScreen}
             />
           )}
           {currentScreen === "crs_normalization" && (
             <CRSNormalizationView
               investigation={activeInvestigation}
+              crsRows={crsRows}
               onNavigate={setCurrentScreen}
             />
           )}

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import {
   Layers,
   MapPin,
@@ -10,6 +10,7 @@ import {
   Clock,
   ArrowRight,
   ShieldCheck,
+  UploadCloud,
 } from "lucide-react";
 import { DemoMap } from "./DemoMap";
 import { Screen } from "./Sidebar";
@@ -23,12 +24,29 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, onSelectParcel }) => {
+  const hasUploadedData = Boolean(
+    (data.cadastral && data.cadastral.features && data.cadastral.features.length > 0) ||
+    (data.residuals && data.residuals.length > 0)
+  );
+
+  const sourcesCount = [
+    data.cadastral?.features?.length ? 1 : 0,
+    data.buildings?.features?.length ? 1 : 0,
+    data.control?.features?.length ? 1 : 0,
+    data.municipal?.features?.length ? 1 : 0,
+    data.utilities?.features?.length ? 1 : 0,
+    data.revenue ? 1 : 0,
+    data.dsm ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
+
+  const parcelsCount = data.cadastral?.features?.length || 0;
   const residuals = data.residuals || [];
   const meta = data.harmonize_meta || {};
 
-  const dndCases = residuals.filter((r: AnyObj) => r.state?.includes("Do Not Decide") || r.ambiguous_match).length || 3;
-  const autoMatchPct = meta.inlier_ratio !== undefined ? (meta.inlier_ratio * 100).toFixed(1) : "92.3";
-  const conflictsCount = residuals.filter((r: AnyObj) => r.risk === "high" || r.risk === "medium").length || 18;
+  const dndCases = residuals.filter((r: AnyObj) => r.state?.includes("Do Not Decide") || r.ambiguous_match).length;
+  const autoMatchPct = meta.inlier_ratio !== undefined ? `${(meta.inlier_ratio * 100).toFixed(1)}%` : (hasUploadedData ? "0%" : "—");
+  const conflictsCount = residuals.filter((r: AnyObj) => r.risk === "high" || r.risk === "medium").length;
+  const resolutionRate = residuals.length > 0 ? `${Math.round(((residuals.length - conflictsCount) / residuals.length) * 100)}%` : "—";
 
   return (
     <div className="page-container dashboard-root">
@@ -38,13 +56,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           <h2>Dashboard</h2>
           <p>Overview of your land harmonization projects &bull; NAKSHA Programme</p>
         </div>
-        <button className="btn-emerald" onClick={() => onNavigate("new_investigation")}>
-          <Plus size={16} />
-          <span>New Investigation</span>
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button className="btn-outline-sm" onClick={() => onNavigate("upload")}>
+            <UploadCloud size={15} />
+            <span>Upload Datasets</span>
+          </button>
+          <button className="btn-emerald" onClick={() => onNavigate("new_investigation")}>
+            <Plus size={16} />
+            <span>New Investigation</span>
+          </button>
+        </div>
       </div>
 
-      {/* 6 KPI Cards Grid matching Screen 02 */}
+      {/* 6 KPI Cards Grid */}
       <div className="dashboard-6-kpis-grid">
         {/* KPI 1: Data Sources Ingested */}
         <div className="bf-kpi-card">
@@ -55,22 +79,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
             </div>
           </div>
           <div className="kpi-value-row">
-            <span className="kpi-number" style={{ color: "#10b981" }}>9</span>
-            <span className="kpi-subtext">Multi-Source</span>
+            <span className="kpi-number" style={{ color: "#10b981" }}>{sourcesCount}</span>
+            <span className="kpi-subtext">Active Sources</span>
           </div>
         </div>
 
         {/* KPI 2: Parcels Analysed */}
         <div className="bf-kpi-card">
           <div className="kpi-top-row">
-            <small>Parcels Analysed</small>
+            <small>Parcels Ingested</small>
             <div className="kpi-icon-mini" style={{ background: "rgba(2, 132, 199, 0.12)", color: "#0284c7" }}>
               <MapPin size={16} />
             </div>
           </div>
           <div className="kpi-value-row">
-            <span className="kpi-number" style={{ color: "#0284c7" }}>142</span>
-            <span className="kpi-subtext">Pilot Area</span>
+            <span className="kpi-number" style={{ color: "#0284c7" }}>{parcelsCount}</span>
+            <span className="kpi-subtext">{parcelsCount > 0 ? "Analyzed" : "Empty"}</span>
           </div>
         </div>
 
@@ -84,7 +108,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
           </div>
           <div className="kpi-value-row">
             <span className="kpi-number" style={{ color: "#ef4444" }}>{conflictsCount}</span>
-            <span className="kpi-subtext">Prioritized</span>
+            <span className="kpi-subtext">{conflictsCount > 0 ? "Prioritized" : "None"}</span>
           </div>
         </div>
 
@@ -97,22 +121,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
             </div>
           </div>
           <div className="kpi-value-row">
-            <span className="kpi-number" style={{ color: "#10b981" }}>{autoMatchPct}%</span>
-            <span className="kpi-subtext">RANSAC inliers</span>
+            <span className="kpi-number" style={{ color: "#10b981" }}>{autoMatchPct}</span>
+            <span className="kpi-subtext">{hasUploadedData ? "RANSAC Consensus" : "Pending Data"}</span>
           </div>
         </div>
 
         {/* KPI 5: Do Not Decide */}
         <div className="bf-kpi-card">
           <div className="kpi-top-row">
-            <small>Do-Not-Decide</small>
+            <small>Do-Not-Decide (DND)</small>
             <div className="kpi-icon-mini" style={{ background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}>
               <ShieldAlert size={16} />
             </div>
           </div>
           <div className="kpi-value-row">
             <span className="kpi-number" style={{ color: "#f59e0b" }}>{dndCases}</span>
-            <span className="kpi-subtext">Routed to AO</span>
+            <span className="kpi-subtext">{dndCases > 0 ? "Routed to AO" : "No Escalations"}</span>
           </div>
         </div>
 
@@ -125,8 +149,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
             </div>
           </div>
           <div className="kpi-value-row">
-            <span className="kpi-number" style={{ color: "#6366f1" }}>87.3%</span>
-            <span className="kpi-subtext">Consensus</span>
+            <span className="kpi-number" style={{ color: "#6366f1" }}>{resolutionRate}</span>
+            <span className="kpi-subtext">{residuals.length > 0 ? "Consensus" : "Pending"}</span>
           </div>
         </div>
       </div>
@@ -137,8 +161,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
         <div className="bf-card dashboard-map-card">
           <div className="dashboard-map-header">
             <div>
-              <h3>Integrated Land View · Kharadi Sector 12</h3>
-              <p>Cadastral Baseline overlaid with Drone ORI &amp; Municipal Corridors</p>
+              <h3>Integrated Land View</h3>
+              <p>
+                {data.name ? `${data.name} · Real-time Geospatial Overlay` : "Multi-source spatial harmonization canvas"}
+              </p>
             </div>
             <div className="map-quick-actions">
               <button className="btn-outline-sm" onClick={() => onNavigate("conflict_dashboard")}>
@@ -155,51 +181,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
 
             {/* Layer Checklist Box */}
             <div className="map-layers-checklist">
-              <h4>Layers</h4>
+              <h4>Layers ({sourcesCount})</h4>
               <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
+                <input type="checkbox" defaultChecked={Boolean(data.cadastral?.features?.length)} />
                 <span className="layer-color-dot" style={{ background: "#10b981" }} />
-                <span>Cadastral Parcels</span>
+                <span>Cadastral ({data.cadastral?.features?.length || 0})</span>
               </label>
               <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
+                <input type="checkbox" defaultChecked={Boolean(data.buildings?.features?.length)} />
                 <span className="layer-color-dot" style={{ background: "#0284c7" }} />
-                <span>Drone Imagery</span>
+                <span>Drone Footprints ({data.buildings?.features?.length || 0})</span>
               </label>
               <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
-                <span className="layer-color-dot" style={{ background: "#a855f7" }} />
-                <span>Building Footprints</span>
-              </label>
-              <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
+                <input type="checkbox" defaultChecked={Boolean(data.municipal?.features?.length)} />
                 <span className="layer-color-dot" style={{ background: "#f59e0b" }} />
-                <span>Municipal Boundaries</span>
+                <span>Municipal Roads ({data.municipal?.features?.length || 0})</span>
               </label>
               <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
-                <span className="layer-color-dot" style={{ background: "#ec4899" }} />
-                <span>Utility Networks</span>
-              </label>
-              <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
+                <input type="checkbox" defaultChecked={Boolean(data.control?.features?.length)} />
                 <span className="layer-color-dot" style={{ background: "#8b5cf6" }} />
-                <span>GNSS Control Points</span>
+                <span>GNSS Control ({data.control?.features?.length || 0})</span>
               </label>
               <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
-                <span className="layer-color-dot" style={{ background: "#06b6d4" }} />
-                <span>DSM / DTM</span>
-              </label>
-              <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
-                <span className="layer-color-dot" style={{ background: "#14b8a6" }} />
-                <span>Revenue Records</span>
-              </label>
-              <label className="layer-checkbox-item">
-                <input type="checkbox" defaultChecked />
+                <input type="checkbox" defaultChecked={Boolean(conflictsCount > 0)} />
                 <span className="layer-color-dot" style={{ background: "#ef4444" }} />
-                <span>Conflicts</span>
+                <span>Conflicts ({conflictsCount})</span>
               </label>
             </div>
           </div>
@@ -212,51 +218,68 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ data, onNavigate, 
             <span>Recent Activities</span>
           </div>
 
-          <div className="activities-timeline">
-            <div className="activity-item">
-              <div className="activity-dot green" />
-              <div className="activity-body">
-                <b>AI extraction completed</b>
-                <p>24 buildings detected via OpenCV contour model</p>
-                <small>10:24 AM</small>
-              </div>
+          {!hasUploadedData ? (
+            <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: "12.5px" }}>
+              <p style={{ marginBottom: "12px" }}>No activity logged yet in this workspace.</p>
+              <button className="btn-emerald-sm" style={{ margin: "0 auto" }} onClick={() => onNavigate("new_investigation")}>
+                <Plus size={13} />
+                <span>Create Investigation</span>
+              </button>
             </div>
+          ) : (
+            <div className="activities-timeline">
+              <div className="activity-item">
+                <div className="activity-dot green" />
+                <div className="activity-body">
+                  <b>Datasets Ingested</b>
+                  <p>{sourcesCount} spatial layers loaded into workspace</p>
+                  <small>Active Session</small>
+                </div>
+              </div>
 
-            <div className="activity-item">
-              <div className="activity-dot red" />
-              <div className="activity-body">
-                <b>3 new conflicts detected</b>
-                <p>Boundary overlap &amp; displacement on parcels 216/3, 214/2A</p>
-                <small>10:18 AM</small>
-              </div>
-            </div>
+              {conflictsCount > 0 && (
+                <div className="activity-item">
+                  <div className="activity-dot red" />
+                  <div className="activity-body">
+                    <b>{conflictsCount} conflicts detected</b>
+                    <p>Cross-source boundary discrepancies flagged</p>
+                    <small>High Priority</small>
+                  </div>
+                </div>
+              )}
 
-            <div className="activity-item">
-              <div className="activity-dot blue" />
-              <div className="activity-body">
-                <b>CRS normalization finished</b>
-                <p>Transformed 9 sources to EPSG:32643 UTM Zone 43N</p>
-                <small>10:05 AM</small>
-              </div>
+              {dndCases > 0 && (
+                <div className="activity-item">
+                  <div className="activity-dot yellow" />
+                  <div className="activity-body">
+                    <b>{dndCases} DND escalations</b>
+                    <p>Ambiguous boundaries routed to Authorized Officer</p>
+                    <small>Pending Decision</small>
+                  </div>
+                </div>
+              )}
             </div>
-
-            <div className="activity-item">
-              <div className="activity-dot green" />
-              <div className="activity-body">
-                <b>Investigation created</b>
-                <p>Kharadi Sector 12 Demonstration workspace active</p>
-                <small>09:48 AM</small>
-              </div>
-            </div>
-          </div>
+          )}
 
           <div className="ai-insights-box">
             <h4>AI Recommendations</h4>
-            <p>
-              Parcel <strong>216/3</strong> exhibits 6.3m displacement alongside an active Revenue 7/12 dispute flag. Prioritize field verification.
-            </p>
-            <button className="btn-outline-sm" style={{ width: "100%", justifyContent: "center" }} onClick={() => onNavigate("conflict_dashboard")}>
-              <span>Review 18 Conflicts</span>
+            {!hasUploadedData ? (
+              <p>
+                Workspace is clean. Upload cadastral shapefiles, drone orthomosaics, or GNSS control points to run AI alignment and conflict detection.
+              </p>
+            ) : (
+              <p>
+                {conflictsCount > 0
+                  ? `${conflictsCount} boundary discrepancies detected between Cadastral reference and Drone/GNSS observations. Adjudication recommended.`
+                  : "All current parcel boundaries align within sub-meter tolerance standards."}
+              </p>
+            )}
+            <button
+              className="btn-outline-sm"
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={() => onNavigate(conflictsCount > 0 ? "conflict_dashboard" : "upload")}
+            >
+              <span>{conflictsCount > 0 ? `Review ${conflictsCount} Conflicts` : "Upload Datasets"}</span>
               <ArrowRight size={13} />
             </button>
           </div>

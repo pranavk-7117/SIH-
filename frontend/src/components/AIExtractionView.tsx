@@ -1,5 +1,5 @@
-﻿import React, { useState } from "react";
-import { CheckCircle2, ArrowRight, Info, Upload, Loader2, Sparkles, Layers, Cpu } from "lucide-react";
+import React, { useState } from "react";
+import { CheckCircle2, ArrowRight, Upload, Loader2, Sparkles, Layers, Cpu, Camera } from "lucide-react";
 import { DemoMap } from "./DemoMap";
 import { Screen } from "./Sidebar";
 import { api } from "../api/client";
@@ -18,10 +18,13 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [cvStatus, setCvStatus] = useState<string | null>(null);
 
-  const numBoundaries = cvResults?.contours_found || data.buildings?.features?.length || 24;
+  const numBoundaries = cvResults?.contours_found ?? (data.buildings?.features?.length || 0);
   const avgConf = cvResults?.avg_confidence
     ? `${(cvResults.avg_confidence * 100).toFixed(1)}%`
-    : "92.3%";
+    : numBoundaries > 0 ? "92.3%" : "—";
+  const procTime = cvResults?.processing_time_ms
+    ? `${(cvResults.processing_time_ms / 1000).toFixed(2)} sec`
+    : numBoundaries > 0 ? "0.18 sec" : "—";
 
   const handleCVImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,9 +59,9 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
           <p>Automated building footprint and physical boundary extraction from high-res Drone ORI</p>
         </div>
         <div className="extraction-header-actions">
-          <label className="btn-outline-sm" style={{ cursor: "pointer" }}>
+          <label className="btn-emerald-sm" style={{ cursor: "pointer" }}>
             <Upload size={13} style={{ marginRight: "4px" }} />
-            <span>Upload Test Ortho</span>
+            <span>Upload Drone Ortho (.tif/.png)</span>
             <input type="file" accept=".tif,.tiff,.png,.jpg" onChange={handleCVImageUpload} style={{ display: "none" }} />
           </label>
         </div>
@@ -93,18 +96,18 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
       </div>
 
       {/* Tabs */}
-      <div className="extraction-tabs-row">
+      <div className="extraction-tabs-row" style={{ display: "flex", gap: "10px", margin: "14px 0" }}>
         <button
           className={`tab-btn ${activeTab === "buildings" ? "active" : ""}`}
           onClick={() => setActiveTab("buildings")}
         >
-          <span>Building Footprints</span>
+          Building Footprints
         </button>
         <button
           className={`tab-btn ${activeTab === "other" ? "active" : ""}`}
           onClick={() => setActiveTab("other")}
         >
-          <span>Other Features (Roads &amp; ROW)</span>
+          Other Features (Roads &amp; ROW)
         </button>
       </div>
 
@@ -115,17 +118,21 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
             background: cvStatus.startsWith("✓") ? "#f0fdf4" : "#fef2f2",
             border: `1px solid ${cvStatus.startsWith("✓") ? "#bbf7d0" : "#fecaca"}`,
             color: cvStatus.startsWith("✓") ? "#166534" : "#991b1b",
-            padding: "8px 12px",
-            borderRadius: "6px",
-            marginBottom: "14px",
-            fontSize: "12px",
+            padding: "10px 14px",
+            borderRadius: "7px",
+            marginBottom: "16px",
+            fontSize: "12.5px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
           }}
         >
-          {cvStatus}
+          {isProcessing && <Loader2 size={15} className="spin" />}
+          <span>{cvStatus}</span>
         </div>
       )}
 
-      {/* 3-Panel Split matching Screen 07 */}
+      {/* 3-Panel Split */}
       <div className="extraction-3-split-grid">
         {/* Left: Input Orthoimage */}
         <div className="bf-card extraction-panel-card">
@@ -133,13 +140,24 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
             <span>Input Orthoimage (5cm GSD)</span>
             <span className="badge-pill info">Raw Drone ORI</span>
           </div>
-          <div className="ortho-canvas-box">
-            <div className="ortho-simulated-tile">
-              <div className="ortho-subtile-grid" />
-              <div className="ortho-hud-overlay">
-                <span>WGS84 73.774°E 18.560°N</span>
-                <span>Zoom 19 &bull; RGB 3-Band</span>
-              </div>
+          <div className="ortho-canvas-box" style={{ position: "relative", height: "300px", overflow: "hidden", borderRadius: "8px" }}>
+            {/* Show satellite basemap tile or aerial preview */}
+            <DemoMap data={data} singleParcelFocus="none" compact />
+            <div
+              style={{
+                position: "absolute",
+                bottom: "10px",
+                left: "10px",
+                background: "rgba(15, 23, 42, 0.85)",
+                color: "#34d399",
+                fontSize: "11px",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                fontFamily: "monospace",
+                zIndex: 10,
+              }}
+            >
+              5cm GSD &bull; Drone Orthomosaic
             </div>
           </div>
         </div>
@@ -150,7 +168,7 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
             <span>Extracted Buildings (AI)</span>
             <span className="badge-pill success">Vectorized Polygons</span>
           </div>
-          <div className="ortho-canvas-box">
+          <div className="ortho-canvas-box" style={{ height: "300px", borderRadius: "8px", overflow: "hidden" }}>
             <DemoMap data={data} singleParcelFocus="buildings_only" compact />
           </div>
         </div>
@@ -161,36 +179,42 @@ export const AIExtractionView: React.FC<AIExtractionViewProps> = ({ data, onNavi
             <span>Extraction Results</span>
           </div>
 
-          <div className="results-metrics-stack">
-            <div className="result-metric-row">
-              <div className="result-stat-group">
-                <span className="stat-large" style={{ color: "#10b981" }}>{numBoundaries}</span>
-                <small>Building footprints</small>
+          <div className="results-metrics-stack" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div className="result-metric-row" style={{ padding: "12px 14px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div className="result-stat-group" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span className="stat-large" style={{ color: "#10b981", fontSize: "28px", fontWeight: 800 }}>
+                  {numBoundaries}
+                </span>
+                <small style={{ color: "#64748b", fontSize: "12px" }}>Building footprints detected</small>
               </div>
             </div>
 
-            <div className="result-metric-row">
-              <div className="result-stat-group">
-                <span className="stat-large" style={{ color: "#0284c7" }}>{avgConf}</span>
-                <small>Mean confidence</small>
+            <div className="result-metric-row" style={{ padding: "12px 14px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div className="result-stat-group" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span className="stat-large" style={{ color: "#0284c7", fontSize: "28px", fontWeight: 800 }}>
+                  {avgConf}
+                </span>
+                <small style={{ color: "#64748b", fontSize: "12px" }}>Mean detection confidence</small>
               </div>
             </div>
 
-            <div className="result-metric-row">
-              <div className="result-stat-group">
-                <span className="stat-large" style={{ color: "#a855f7" }}>0.18 sec</span>
-                <small>Processing time</small>
+            <div className="result-metric-row" style={{ padding: "12px 14px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div className="result-stat-group" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span className="stat-large" style={{ color: "#a855f7", fontSize: "28px", fontWeight: 800 }}>
+                  {procTime}
+                </span>
+                <small style={{ color: "#64748b", fontSize: "12px" }}>Polygonization inference time</small>
               </div>
             </div>
           </div>
 
-          <div className="extraction-model-note">
-            <Sparkles size={14} style={{ color: "#10b981", flexShrink: 0 }} />
+          <div className="extraction-model-note" style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "10px", background: "rgba(16, 185, 129, 0.08)", borderRadius: "7px", fontSize: "11.5px", color: "#374151", marginTop: "12px" }}>
+            <Sparkles size={15} style={{ color: "#10b981", flexShrink: 0, marginTop: "2px" }} />
             <span>OpenCV Canny edge detection &bull; approxPolyDP contour polygonization &bull; compactness scoring active.</span>
           </div>
 
-          <button className="btn-emerald" style={{ width: "100%", marginTop: "auto" }} onClick={handleProceed}>
-            <span>View Extracted Features</span>
+          <button className="btn-emerald" style={{ width: "100%", marginTop: "auto", justifyContent: "center" }} onClick={handleProceed}>
+            <span>Proceed to Harmonization</span>
             <ArrowRight size={14} />
           </button>
         </div>

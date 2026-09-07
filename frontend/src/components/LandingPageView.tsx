@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { ArrowRight, Layers, ShieldCheck, Cpu, Database, CheckCircle2 } from "lucide-react";
 import { Screen } from "./Sidebar";
 
@@ -100,7 +100,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({ onEnterApp }) 
               <span>+ Create Investigation</span>
             </button>
             <button className="btn-hero-outline" onClick={() => onEnterApp("upload")}>
-              <span>Synthetic Demo Datasets</span>
+              <span>Upload &amp; Ingest Datasets</span>
             </button>
           </div>
 
@@ -127,9 +127,9 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({ onEnterApp }) 
           <span className="init-badge">Digital India</span>
           <span className="init-badge">Atmanirbhar Bharat</span>
           <span className="init-badge">Viksit Bharat 2047</span>
-          <span className="init-badge" style={{ background: "#ecfdf5", borderColor: "#a7f3d0", color: "#065f46" }}>
+          <span className="init-badge status-ready">
             <CheckCircle2 size={13} style={{ marginRight: "4px" }} />
-            Synthetic Demonstration Dataset Mode Active
+            Ready for Data Ingestion
           </span>
         </div>
       </footer>

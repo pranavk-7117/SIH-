@@ -147,70 +147,8 @@ def init_db() -> None:
     if "row_hash" not in al_cols:
         cursor.execute("ALTER TABLE audit_logs ADD COLUMN row_hash TEXT NOT NULL DEFAULT ''")
 
-    # Seed investigations if empty or missing INV-2026-0001
-    cursor.execute("SELECT COUNT(*) FROM investigations WHERE id = 'INV-2026-0001'")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute(
-            """INSERT OR REPLACE INTO investigations
-               (id, area_id, area_name, city_area, cadastral_year, survey_year, description, status, parcels_count, current_step, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("INV-2026-0001", "pune_kharadi", "Kharadi Sector 12 — Demonstration", "Kharadi, Pune", "1960", "2024",
-             "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)",
-             "IN_PROGRESS", 24, 1, "2026-09-02T10:00:00Z"),
-        )
-        # Seed 9 baseline demonstration source entries for INV-2026-0001
-        demo_sources = [
-            ("INV-2026-0001", "cadastral", "cadastral_1960.geojson", "GeoJSON", "EPSG:4326", "EPSG:32643", 24, "VALID", "2026-09-02T10:01:00Z"),
-            ("INV-2026-0001", "drone", "kharadi_ortho_2024.tif", "GeoTIFF", "EPSG:32643", "EPSG:32643", 1, "VALID", "2026-09-02T10:02:00Z"),
-            ("INV-2026-0001", "dsm", "dsm_dtm.tif", "GeoTIFF", "EPSG:32643", "EPSG:32643", 1, "VALID", "2026-09-02T10:03:00Z"),
-            ("INV-2026-0001", "gnss", "gnss_2024.csv", "CSV", "WGS84", "EPSG:32643", 8, "VALID", "2026-09-02T10:04:00Z"),
-            ("INV-2026-0001", "municipal", "municipal.gpkg", "GPKG", "EPSG:32643", "EPSG:32643", 36, "VALID", "2026-09-02T10:05:00Z"),
-            ("INV-2026-0001", "revenue", "revenue_7_12.csv", "CSV", "-", "Attribute only", 24, "VALID", "2026-09-02T10:06:00Z"),
-            ("INV-2026-0001", "utility", "utility.gpkg", "GPKG", "EPSG:32643", "EPSG:32643", 18, "VALID", "2026-09-02T10:07:00Z"),
-            ("INV-2026-0001", "buildings", "buildings.geojson", "GeoJSON", "EPSG:32643", "EPSG:32643", 24, "VALID", "2026-09-02T10:08:00Z"),
-            ("INV-2026-0001", "ground_truth", "ground_truth.csv", "CSV", "WGS84", "EPSG:32643", 10, "VALID", "2026-09-02T10:09:00Z"),
-        ]
-        cursor.executemany(
-            """INSERT OR REPLACE INTO investigation_sources
-               (investigation_id, source_key, filename, file_format, original_crs, target_crs, features_count, status, uploaded_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            demo_sources
-        )
-
-    # Seed audit logs with hash chain if empty or missing row_hash
-    cursor.execute("SELECT COUNT(*) FROM audit_logs")
-    if cursor.fetchone()[0] == 0:
-        seed_entries = [
-            ("aud-001", "Sources Ingested", "System",
-             "Ingested 4 files: Cadastral SHP, Drone GeoJSON footprints, GNSS CSV, Municipal GeoJSON. Real GeoJSON/CSV paths active; SHP/GeoTIFF/GPKG coming soon.",
-             "upload", "02 Sep 2026 10:30"),
-            ("aud-002", "CRS Normalized", "System",
-             "Transformed all ingested sources from declared EPSG:32643 (UTM Zone 43N) to common WGS84 EPSG:4326 reference frame.",
-             "process", "02 Sep 2026 10:32"),
-            ("aud-003", "Boundary Observations Ingested", "System",
-             "Ingested 24 physical parcel boundary observations (OSM/footprint-derived). Boundary observations sourced from prepared footprint data; learned image segmentation is the next inference layer.",
-             "process", "02 Sep 2026 10:35"),
-            ("aud-004", "Evidence Graph Built", "System",
-             "Constructed spatial evidence graph: 59 nodes, 58 cross-source relationship edges. Adjacency and road-intersection edges computed from real spatial predicates (centroid proximity, bounding-box adjacency).",
-             "process", "02 Sep 2026 10:38"),
-            ("aud-005", "Registration & Alignment", "System",
-             "RANSAC-filtered correspondence set. True TPS (r²log(r) kernel) transform computed on inlier control points. Sub-meter RMSE validated post-alignment.",
-             "process", "02 Sep 2026 10:41"),
-            ("aud-006", "Topology Verification & Correction", "System",
-             "ST_IsValid executed on all harmonized polygons. Auto-corrected self-intersections via buffer(0). Remaining invalid geometries routed to manual correction.",
-             "process", "02 Sep 2026 10:45"),
-        ]
-        prev_hash = "0" * 64
-        for entry in seed_entries:
-            row_data = {"id": entry[0], "action": entry[1], "user": entry[2],
-                        "details": entry[3], "type": entry[4], "timestamp": entry[5]}
-            h = _sha256_row(prev_hash, row_data)
-            cursor.execute(
-                "INSERT INTO audit_logs (id, action, user, details, type, timestamp, row_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (*entry, h),
-            )
-            prev_hash = h
-    else:
+    # Clean database initialization - no preloaded data
+    # (Tables are created clean and empty ready for real user investigations)
         # Check if rows have empty row_hash and populate them
         cursor.execute("SELECT rowid, id, action, user, details, type, timestamp, row_hash FROM audit_logs ORDER BY rowid ASC")
         rows = cursor.fetchall()

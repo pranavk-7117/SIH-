@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { ArrowRight, Sparkles, MapPin, Calendar, Layers, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { api } from "../api/client";
 import { Screen } from "./Sidebar";
@@ -12,13 +12,11 @@ export const NewInvestigationView: React.FC<NewInvestigationViewProps> = ({
   onInvestigationCreated,
   onNavigate,
 }) => {
-  const [name, setName] = useState("Kharadi Sector 12 — Demonstration");
-  const [cityArea, setCityArea] = useState("Kharadi, Pune");
-  const [cadastralYear, setCadastralYear] = useState("1960");
-  const [surveyYear, setSurveyYear] = useState("2024");
-  const [description, setDescription] = useState(
-    "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)"
-  );
+  const [name, setName] = useState("");
+  const [cityArea, setCityArea] = useState("");
+  const [cadastralYear, setCadastralYear] = useState("");
+  const [surveyYear, setSurveyYear] = useState("");
+  const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
