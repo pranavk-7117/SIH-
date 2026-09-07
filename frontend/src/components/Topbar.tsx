@@ -1,5 +1,5 @@
-﻿import React from "react";
-import { Search, Bell, Plus, Loader2 } from "lucide-react";
+import React from "react";
+import { Search, Bell, Plus, Loader2, FolderKanban } from "lucide-react";
 import { Screen } from "./Sidebar";
 import { STUDY_AREAS } from "../studyAreas";
 
@@ -11,6 +11,9 @@ interface TopbarProps {
   onAreaChange: (areaId: string) => void;
   onNavigate?: (screen: Screen) => void;
   isComputing?: boolean;
+  investigations?: any[];
+  activeInvestigation?: any;
+  onSelectInvestigation?: (invId: string) => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -21,6 +24,9 @@ export const Topbar: React.FC<TopbarProps> = ({
   onAreaChange,
   onNavigate,
   isComputing = false,
+  investigations = [],
+  activeInvestigation = null,
+  onSelectInvestigation,
 }) => {
   const getScreenTitle = () => {
     switch (currentScreen) {
@@ -39,27 +45,27 @@ export const Topbar: React.FC<TopbarProps> = ({
       case "extract":
         return { title: "AI Feature Extraction", subtitle: "Automated building footprint and physical boundary extraction" };
       case "sources":
-        return { title: "Source Viewer", subtitle: "Preview and compare uploaded sources side-by-side" };
+        return { title: "Multi-Source Viewer", subtitle: "Inspect Cadastral, Drone, GNSS and Municipal layers" };
       case "harmonize":
-        return { title: "Harmonization & Results", subtitle: "Thin-Plate Spline (TPS) registration & RANSAC correspondence filtering" };
+        return { title: "Geometric Alignment", subtitle: "Affine & TPS transformation with RANSAC outlier filtering" };
       case "conflict_dashboard":
         return { title: "Conflict Dashboard", subtitle: "Evidence-driven review of spatial and legal discrepancies" };
       case "discrepancy":
-        return { title: "Discrepancy Map", subtitle: "Spatial displacement heatmap and legal mismatch visualizer" };
+        return { title: "Discrepancy Map", subtitle: "Residual vectors and boundary displacement visualization" };
       case "evidence":
-        return { title: "Evidence Cards", subtitle: "Multi-source evidence breakdown & trust scores" };
-      case "graph":
-        return { title: "AI Feature Graph", subtitle: "Interactive multi-relational spatial evidence graph" };
+        return { title: "Spatial Evidence Card", subtitle: "Multi-source fusion confidence scoring per parcel" };
       case "review":
         return { title: "Review & Decision", subtitle: "Authorized officer adjudication with court-admissible audit capture" };
+      case "graph":
+        return { title: "Spatial Evidence Graph", subtitle: "Knowledge graph linking cadastral, physical and legal entities" };
       case "reports":
-        return { title: "Reports & Export", subtitle: "Authoritative harmonized land governance download packages" };
+        return { title: "Reports & Export", subtitle: "Generate court-admissible audit packages and GeoJSON bundles" };
       case "audit":
-        return { title: "Audit Trail", subtitle: "Tamper-evident append-only ledger with SHA-256 hash chaining" };
+        return { title: "Audit Trail", subtitle: "SHA-256 tamper-evident immutable change ledger" };
       case "settings":
-        return { title: "Settings", subtitle: "System authority weights, Do-Not-Decide thresholds & models" };
+        return { title: "Authority Weights", subtitle: "Configure multi-criteria evidence weights and DND thresholds" };
       default:
-        return { title: "BHUMI-FUSE", subtitle: "AI Land Harmonization Engine" };
+        return { title: "BHUMI-FUSE", subtitle: "SIH-26013 Geospatial Integration" };
     }
   };
 
@@ -80,26 +86,40 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         )}
 
-        {/* Location / Search Box */}
-        <div className="topbar-search-box">
-          <Search size={14} className="search-icon" />
+        {/* Real Investigation Selector from DB */}
+        <div className="topbar-search-box" style={{ minWidth: "220px" }}>
+          <FolderKanban size={14} className="search-icon" style={{ color: "#047857" }} />
           <select
             className="topbar-area-dropdown"
-            value={activeAreaId}
-            onChange={(e) => onAreaChange(e.target.value)}
+            value={activeInvestigation?.id || ""}
+            onChange={(e) => {
+              if (e.target.value === "__new__") {
+                if (onNavigate) onNavigate("new_investigation");
+              } else if (onSelectInvestigation) {
+                onSelectInvestigation(e.target.value);
+              }
+            }}
+            style={{ fontWeight: 600, color: "#0f172a" }}
           >
-            {areaIds.map((id) => (
-              <option key={id} value={id}>
-                {STUDY_AREAS[id]?.name || id}
+            {investigations && investigations.length > 0 ? (
+              investigations.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.id}: {inv.name || inv.area_name || "Investigation"}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>
+                No Investigations Yet
               </option>
-            ))}
+            )}
+            <option value="__new__">+ Create New Investigation</option>
           </select>
         </div>
 
         {/* Notification Bell */}
         <button className="topbar-icon-btn" title="Notifications">
           <Bell size={16} />
-          <span className="notif-badge">3</span>
+          <span className="notif-badge">0</span>
         </button>
 
         {/* User profile pill */}

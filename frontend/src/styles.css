@@ -4317,3 +4317,146 @@ button.tab-btn.active {
   line-height: 1.5 !important;
   margin: 0 !important;
 }
+
+
+/* ================================================================
+   Review & Decision Styling (Subtabs, Facts, Radio Options)
+   ================================================================ */
+
+.evidence-subtabs {
+  display: inline-flex !important;
+  gap: 8px !important;
+  margin: 12px 0 16px 0 !important;
+  background: #f1f5f9 !important;
+  padding: 4px !important;
+  border-radius: 8px !important;
+}
+
+.subtab-btn {
+  padding: 6px 16px !important;
+  border-radius: 6px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #64748b !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.subtab-btn.active {
+  background: #047857 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+}
+
+.evidence-facts-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  margin-bottom: 16px !important;
+}
+
+.fact-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 10px 14px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+}
+
+.fact-label {
+  font-size: 12.5px !important;
+  color: #475569 !important;
+  font-weight: 500 !important;
+}
+
+.fact-val {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+}
+
+.fact-val.red {
+  color: #dc2626 !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+.fact-val.amber {
+  color: #b45309 !important;
+  background: rgba(245, 158, 11, 0.1) !important;
+}
+
+.fact-val.green {
+  color: #059669 !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+}
+
+.decision-radio-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin: 14px 0 !important;
+}
+
+.decision-radio-option {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.decision-radio-option:hover {
+  border-color: #047857 !important;
+  background: #f0fdf4 !important;
+}
+
+.decision-radio-option.checked {
+  border-color: #047857 !important;
+  background: #ecfdf5 !important;
+}
+
+.decision-radio-option input[type="radio"] {
+  accent-color: #047857 !important;
+  width: 16px !important;
+  height: 16px !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+}
+
+.decision-radio-option .option-text {
+  font-size: 13px !important;
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+
+/* Upload Ingestion Cards Status Pills */
+.file-status-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 3px 9px !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.file-status-pill.active {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #059669 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.file-status-pill.pending {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  border: 1px solid #e2e8f0 !important;
+}

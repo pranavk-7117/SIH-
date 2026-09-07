@@ -572,16 +572,20 @@ async def upload_investigation_source(
 
     feat_count = 24
     crs_detected = "EPSG:32643"
+    data_str = None
     try:
         if ext in (".json", ".geojson"):
             data = json.loads(content.decode("utf-8", errors="replace"))
             feats = data.get("features", []) if isinstance(data, dict) else data
             feat_count = len(feats) if isinstance(feats, list) else 24
             crs_detected = data.get("crs", {}).get("properties", {}).get("name", "EPSG:4326")
+            data_str = json.dumps(data)
         elif ext in (".csv", ".txt"):
-            lines = content.decode("utf-8", errors="replace").splitlines()
+            text = content.decode("utf-8", errors="replace")
+            lines = text.splitlines()
             feat_count = max(0, len(lines) - 1)
             crs_detected = "WGS84"
+            data_str = text
     except Exception:
         pass
 
@@ -595,6 +599,7 @@ async def upload_investigation_source(
         target_crs=target_crs,
         features_count=feat_count,
         status="VALID",
+        data_json=data_str,
     )
     update_investigation_step(inv_id, 2)
     return {

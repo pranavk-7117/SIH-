@@ -59,8 +59,98 @@ export const App: React.FC = () => {
   const [activeAreaId, setActiveAreaId] = useState<string>("pune_kharadi");
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [activeInvestigation, setActiveInvestigation] = useState<any>(null);
+  const [investigationsList, setInvestigationsList] = useState<any[]>([]);
   const [uploadedSources, setUploadedSources] = useState<any[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Load stored investigations on mount from SQLite DB & localStorage
+  useEffect(() => {
+    const loadStoredInvestigations = async () => {
+      try {
+        const list = await api.getInvestigations();
+        setInvestigationsList(list || []);
+
+        const storedId = localStorage.getItem("bhumi_active_inv_id");
+        const targetId = storedId || (list && list.length > 0 ? list[0].id : null);
+        if (targetId) {
+          const inv = await api.getInvestigation(targetId);
+          if (inv && inv.id) {
+            setActiveInvestigation(inv);
+            if (inv.sources_list && inv.sources_list.length > 0) {
+              const restored = inv.sources_list.map((s: any) => ({
+                source: s.source_key.charAt(0).toUpperCase() + s.source_key.slice(1),
+                file: s.filename,
+                format: s.file_format,
+                crs: s.original_crs,
+                features: String(s.features_count || 1),
+                status: s.status === "VALID" ? "Valid" : "Warning",
+              }));
+              setUploadedSources(restored);
+
+              const restoredLayers: any = {};
+              for (const s of inv.sources_list) {
+                if (s.data_json) {
+                  try {
+                    restoredLayers[s.source_key] = JSON.parse(s.data_json);
+                  } catch {}
+                }
+              }
+              if (Object.keys(restoredLayers).length > 0) {
+                setCustomLayers(restoredLayers);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load stored investigations:", err);
+      }
+    };
+    loadStoredInvestigations();
+  }, []);
+
+  const handleSelectInvestigation = async (invId: string) => {
+    try {
+      const inv = await api.getInvestigation(invId);
+      if (inv && inv.id) {
+        setActiveInvestigation(inv);
+        localStorage.setItem("bhumi_active_inv_id", inv.id);
+        if (inv.sources_list && inv.sources_list.length > 0) {
+          const restored = inv.sources_list.map((s: any) => ({
+            source: s.source_key.charAt(0).toUpperCase() + s.source_key.slice(1),
+            file: s.filename,
+            format: s.file_format,
+            crs: s.original_crs,
+            features: String(s.features_count || 1),
+            status: s.status === "VALID" ? "Valid" : "Warning",
+          }));
+          setUploadedSources(restored);
+
+          const restoredLayers: any = {};
+          for (const s of inv.sources_list) {
+            if (s.data_json) {
+              try {
+                restoredLayers[s.source_key] = JSON.parse(s.data_json);
+              } catch {}
+            }
+          }
+          setCustomLayers(restoredLayers);
+        } else {
+          setUploadedSources([]);
+          setCustomLayers({});
+        }
+        showToast(`Loaded investigation ${inv.id}: ${inv.name}`);
+      }
+    } catch (err) {
+      console.error("Error selecting investigation:", err);
+    }
+  };
+
+  const handleInvestigationCreated = (inv: any) => {
+    setActiveInvestigation(inv);
+    localStorage.setItem("bhumi_active_inv_id", inv.id);
+    setInvestigationsList((prev) => [inv, ...prev.filter((i) => i.id !== inv.id)]);
+    showToast(`✓ Investigation ${inv.id} created and stored in database`);
+  };
 
   // Live computation state
   const [harmonizeResult, setHarmonizeResult] = useState<HarmonizeResult | null>(null);
@@ -345,6 +435,9 @@ export const App: React.FC = () => {
           onAreaChange={handleAreaChange}
           onNavigate={setCurrentScreen}
           isComputing={isComputing}
+          investigations={investigationsList}
+          activeInvestigation={activeInvestigation}
+          onSelectInvestigation={handleSelectInvestigation}
         />
 
         <main className="main-content">
@@ -357,10 +450,7 @@ export const App: React.FC = () => {
           )}
           {currentScreen === "new_investigation" && (
             <NewInvestigationView
-              onInvestigationCreated={(inv) => {
-                setActiveInvestigation(inv);
-                showToast(`✓ Investigation ${inv.id} created`);
-              }}
+              onInvestigationCreated={handleInvestigationCreated}
               onNavigate={setCurrentScreen}
             />
           )}
@@ -370,6 +460,7 @@ export const App: React.FC = () => {
               onUploadData={handleUploadData}
               onNavigate={setCurrentScreen}
               onContinue={() => setCurrentScreen("validation")}
+              investigation={activeInvestigation}
             />
           )}
           {currentScreen === "validation" && (
