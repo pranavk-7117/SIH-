@@ -55,7 +55,7 @@ const makeAuditEntry = (action: string, details: string, type: AuditEntry["type"
 
 export const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
-  const [selectedParcelId, setSelectedParcelId] = useState<string>("parcel-101");
+  const [selectedParcelId, setSelectedParcelId] = useState<string>("");
   const [activeAreaId, setActiveAreaId] = useState<string>("pune_kharadi");
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [activeInvestigation, setActiveInvestigation] = useState<any>(null);
@@ -173,13 +173,14 @@ export const App: React.FC = () => {
 
   // ── Live Harmonization ─────────────────────────────────────────────────
   const runHarmonization = useCallback(async (overrides?: { customLayers?: typeof customLayers }) => {
-    if (!activeArea) return;
     setIsComputing(true);
     const startTs = Date.now();
     const activeCustom = overrides?.customLayers || customLayers;
+    const invId = activeInvestigation?.id;
     try {
       const result = await api.runHarmonization({
         areaId: activeAreaId,
+        investigationId: invId,
         model: registrationModel,
         authorityWeights,
         dndThreshold,
@@ -188,39 +189,40 @@ export const App: React.FC = () => {
       setHarmonizeResult(result);
 
       const elapsedMs = Date.now() - startTs;
+      const inlierRatioText = result.inlier_ratio !== null && result.inlier_ratio !== undefined
+        ? `${Math.round(result.inlier_ratio * 100)}%`
+        : "—";
       addAuditEntry(
         makeAuditEntry(
           `Live ${registrationModel.toUpperCase()} Registration & Alignment`,
-          `Computed ${result.model.toUpperCase()} transform on ${result.control_points_used} control points. ` +
-          `Post-align RMSE: ${result.rmse} m | Max displacement: ${result.max_residual} m | Inlier ratio: ${result.inlier_ratio}%. ` +
+          `Computed ${result.model ? result.model.toUpperCase() : "REGISTRATION"} transform on ${result.control_points_used} control points. ` +
+          `Post-align RMSE: ${result.rmse ?? "—"} m | Max residual: ${result.max_residual ?? "—"} m | Inlier ratio: ${inlierRatioText}. ` +
           `Computed in ${elapsedMs} ms.`,
           "process"
         )
       );
 
       // Auto-build evidence graph with fresh residuals
-      const g = await api.getEvidenceGraph(
-        activeAreaId,
-        result.residuals,
-        Object.keys(activeCustom).length > 0 ? activeCustom : undefined
-      );
-      setGraphData(g);
-      addAuditEntry(
-        makeAuditEntry(
-          "Evidence Graph Rebuilt",
-          `Graph updated with ${g.nodes.length} nodes and ${g.links.length} edges across ${activeArea.name}.`,
-          "process"
-        )
-      );
+      try {
+        const g = await api.getEvidenceGraph(
+          activeAreaId,
+          result.residuals,
+          Object.keys(activeCustom).length > 0 ? activeCustom : undefined,
+          invId
+        );
+        setGraphData(g);
+      } catch (graphErr) {
+        console.warn("Could not fetch evidence graph from backend:", graphErr);
+      }
 
-      showToast(`✓ Live ${registrationModel.toUpperCase()} harmonization complete — RMSE: ${result.rmse} m`);
-    } catch (err) {
-      showToast("⚠ Computation failed — check console for details.");
+      showToast(`✓ Live ${registrationModel.toUpperCase()} harmonization complete — RMSE: ${result.rmse ?? "—"} m`);
+    } catch (err: any) {
+      showToast(`⚠ Harmonization: ${err.message || "Computation failed"}`);
       console.error("Harmonization error:", err);
     } finally {
       setIsComputing(false);
     }
-  }, [activeAreaId, registrationModel, authorityWeights, dndThreshold, customLayers]);
+  }, [activeAreaId, registrationModel, authorityWeights, dndThreshold, customLayers, activeInvestigation]);
 
   // Run on mount only when active investigation or uploaded data exists
   useEffect(() => {
@@ -384,16 +386,16 @@ export const App: React.FC = () => {
   const hasActiveSession = Boolean(activeInvestigation || Object.keys(customLayers).length > 0);
 
   // Build data bundle for views from live results
+  // When an investigation is active, layers come strictly from uploaded sources, NEVER study area defaults!
   const liveData = {
-    ...(hasActiveSession ? activeArea : {}),
-    name: activeInvestigation?.name || null,
-    cadastral: customLayers.cadastral || (hasActiveSession ? activeArea?.cadastral : { type: "FeatureCollection", features: [] }),
-    buildings: customLayers.buildings || (hasActiveSession ? activeArea?.buildings : { type: "FeatureCollection", features: [] }),
-    control: customLayers.control || (hasActiveSession ? activeArea?.control : { type: "FeatureCollection", features: [] }),
-    municipal: customLayers.municipal || (hasActiveSession ? activeArea?.municipal : { type: "FeatureCollection", features: [] }),
+    name: activeInvestigation?.name || (hasActiveSession ? null : activeArea?.name),
+    cadastral: customLayers.cadastral || (!activeInvestigation && activeArea ? activeArea.cadastral : { type: "FeatureCollection", features: [] }),
+    buildings: customLayers.buildings || (!activeInvestigation && activeArea ? activeArea.buildings : { type: "FeatureCollection", features: [] }),
+    control: customLayers.control || (!activeInvestigation && activeArea ? activeArea.control : { type: "FeatureCollection", features: [] }),
+    municipal: customLayers.municipal || (!activeInvestigation && activeArea ? activeArea.municipal : { type: "FeatureCollection", features: [] }),
     // Override map center/bounds when user uploads data from a different area
-    ...(uploadedBounds ? { bounds: uploadedBounds } : {}),
-    ...(uploadedCenter ? { center: uploadedCenter } : {}),
+    ...(uploadedBounds ? { bounds: uploadedBounds } : (activeInvestigation ? {} : (activeArea?.bounds ? { bounds: activeArea.bounds } : {}))),
+    ...(uploadedCenter ? { center: uploadedCenter } : (activeInvestigation ? {} : (activeArea?.center ? { center: activeArea.center } : {}))),
     residuals: harmonizeResult?.residuals || [],
     harmonized: harmonizeResult?.harmonized || { type: "FeatureCollection", features: [] },
     harmonize_meta: harmonizeResult
@@ -413,10 +415,10 @@ export const App: React.FC = () => {
       : null,
   };
 
-
-  const selectedParcelNum = parseInt(selectedParcelId.replace("parcel-", ""), 10);
-  const selectedCase = harmonizeResult?.residuals.find((r) => r.parcel_num === selectedParcelNum)
-    || harmonizeResult?.residuals[0];
+  const selectedParcelNum = selectedParcelId ? parseInt(selectedParcelId.replace("parcel-", ""), 10) : NaN;
+  const selectedCase = harmonizeResult?.residuals.find(
+    (r) => r.parcel_num === selectedParcelNum || r.parcel_id === selectedParcelId
+  ) || null;
 
   if (currentScreen === "landing") {
     return <LandingPageView onEnterApp={(s) => setCurrentScreen(s || "dashboard")} />;

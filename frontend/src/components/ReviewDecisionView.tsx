@@ -72,13 +72,18 @@ export const ReviewDecisionView: React.FC<ReviewDecisionViewProps> = ({
     onSubmitDecision(decision, notes, String(selectedParcelId));
   };
 
-  const displacementVal = selectedCase?.residual_m
+  const displacementVal = selectedCase?.post_alignment_residual_m !== null && selectedCase?.post_alignment_residual_m !== undefined
+    ? `${selectedCase.post_alignment_residual_m.toFixed(1)} m`
+    : selectedCase?.residual_m
     ? `${selectedCase.residual_m.toFixed(1)} m`
-    : selectedCase?.displacement_m
-    ? `${selectedCase.displacement_m.toFixed(1)} m`
-    : "6.3 m";
+    : selectedCase?.magnitude_m
+    ? `${selectedCase.magnitude_m.toFixed(1)} m`
+    : "—";
 
-  const isDND = selectedCase?.ambiguous_match || selectedCase?.state?.includes("Do Not Decide") || true;
+  const isDND = Boolean(
+    selectedCase?.ambiguous_match ||
+    (selectedCase?.state && selectedCase.state.includes("Do Not Decide"))
+  );
 
   return (
     <div className="page-container review-decision-root">
@@ -158,35 +163,59 @@ export const ReviewDecisionView: React.FC<ReviewDecisionViewProps> = ({
             <div className="evidence-facts-list">
               <div className="fact-item">
                 <span className="fact-label">Cadastral vs Drone:</span>
-                <span className="fact-val red">Boundary displacement {displacementVal}</span>
+                <span className={`fact-val ${selectedCase?.risk === "high" ? "red" : "amber"}`}>
+                  Boundary displacement {displacementVal}
+                </span>
               </div>
               <div className="fact-item">
                 <span className="fact-label">GNSS disagreement:</span>
-                <span className="fact-val red">2.8 m</span>
+                <span className={`fact-val ${selectedCase?.gnss_disagreement_m !== null && selectedCase?.gnss_disagreement_m !== undefined ? "amber" : "gray"}`}>
+                  {selectedCase?.gnss_disagreement_m !== null && selectedCase?.gnss_disagreement_m !== undefined
+                    ? `${selectedCase.gnss_disagreement_m.toFixed(1)} m`
+                    : "Unavailable (No GNSS)"}
+                </span>
               </div>
               <div className="fact-item">
                 <span className="fact-label">Registration residual:</span>
-                <span className="fact-val amber">2.3 m</span>
+                <span className="fact-val amber">
+                  {selectedCase?.post_alignment_residual_m !== null && selectedCase?.post_alignment_residual_m !== undefined
+                    ? `${selectedCase.post_alignment_residual_m.toFixed(2)} m`
+                    : (selectedCase?.residual_m ? `${selectedCase.residual_m.toFixed(2)} m` : "—")}
+                </span>
               </div>
               <div className="fact-item">
                 <span className="fact-label">Revenue record:</span>
-                <span className="fact-val amber">Dispute flag active (7/12)</span>
+                <span className={`fact-val ${selectedCase?.revenue_record?.dispute_flag ? "red" : selectedCase?.revenue_record ? "green" : "gray"}`}>
+                  {selectedCase?.revenue_record
+                    ? (selectedCase.revenue_record.dispute_flag ? "Dispute Flag Active" : "Clear (No Dispute)")
+                    : "No revenue record matched"}
+                </span>
               </div>
             </div>
           ) : (
             <div className="history-timeline" style={{ display: "flex", flexDirection: "column", gap: "10px", margin: "14px 0" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                <Clock size={14} style={{ color: "#64748b", marginTop: "2px", flexShrink: 0 }} />
-                <span>1960: Cadastral revenue survey registered (2400 sqm)</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                <Clock size={14} style={{ color: "#64748b", marginTop: "2px", flexShrink: 0 }} />
-                <span>2021: Mutation recorded (Khata KH-3481)</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#ef4444" }}>
-                <Clock size={14} style={{ color: "#ef4444", marginTop: "2px", flexShrink: 0 }} />
-                <span>2024: Civil dispute filed over southern boundary corridor</span>
-              </div>
+              {selectedCase?.revenue_record ? (
+                <>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#475569" }}>
+                    <Clock size={14} style={{ color: "#64748b", marginTop: "2px", flexShrink: 0 }} />
+                    <span>Survey / Khasra: <b>{selectedCase.revenue_record.survey_number || selectedCase.revenue_record.khasra_no || "Recorded"}</b></span>
+                  </div>
+                  {selectedCase.revenue_record.last_mutation_date && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: "#475569" }}>
+                      <Clock size={14} style={{ color: "#64748b", marginTop: "2px", flexShrink: 0 }} />
+                      <span>Last Mutation: <b>{selectedCase.revenue_record.last_mutation_date}</b></span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12px", color: selectedCase.revenue_record.dispute_flag ? "#ef4444" : "#10b981" }}>
+                    <Clock size={14} style={{ color: selectedCase.revenue_record.dispute_flag ? "#ef4444" : "#10b981", marginTop: "2px", flexShrink: 0 }} />
+                    <span>Dispute Status: <b>{selectedCase.revenue_record.dispute_flag ? "Active Dispute Flag" : "No Dispute on Record"}</b></span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: "12px", color: "#94a3b8", padding: "10px 0" }}>
+                  Historical revenue records not uploaded for this parcel. Upload revenue CSV to link historical mutation logs.
+                </div>
+              )}
             </div>
           )}
 

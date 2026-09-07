@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { CheckCircle2, ArrowRight, ShieldCheck, Activity, Sliders, RefreshCw } from "lucide-react";
 import { DemoMap } from "./DemoMap";
 import { Screen } from "./Sidebar";
@@ -27,12 +27,12 @@ export const HarmonizationView: React.FC<HarmonizationViewProps> = ({
   onRunHarmonize,
 }) => {
   const meta = harmonizeResult || data.harmonize_meta || {};
-  const correspondences = meta.total_correspondences || 21;
-  const inliers = meta.ransac_inlier_count || 18;
-  const outliers = Math.max(0, correspondences - inliers) || 3;
-  const rmse = meta.rmse !== undefined ? `${meta.rmse} m` : "0.74 m";
-  const meanDisp = meta.mean_residual !== undefined ? `${meta.mean_residual} m` : "1.32 m";
-  const maxDisp = meta.max_residual !== undefined ? `${meta.max_residual} m` : "3.81 m";
+  const correspondences = meta.total_correspondences ?? (data.residuals ? data.residuals.length : 0);
+  const inliers = meta.ransac_inlier_count ?? 0;
+  const outliers = Math.max(0, correspondences - inliers);
+  const rmse = meta.rmse !== undefined && meta.rmse !== null ? `${meta.rmse} m` : "—";
+  const meanDisp = meta.mean_residual !== undefined && meta.mean_residual !== null ? `${meta.mean_residual} m` : "—";
+  const maxDisp = meta.max_residual !== undefined && meta.max_residual !== null ? `${meta.max_residual} m` : "—";
   const modelType = meta.model ? meta.model.toUpperCase() : "TPS";
 
   const handleProceed = () => {

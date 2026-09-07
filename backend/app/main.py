@@ -26,7 +26,7 @@ from app.db import (
     upsert_investigation_source, get_investigation_sources,
     save_investigation_report, get_investigation_reports
 )
-from app.revenue_data import get_revenue_records, get_revenue_record
+from app.revenue_data import get_revenue_records, get_revenue_record  # kept for /export/department legacy endpoint only
 from app.attribute_mapping import map_to_department, detect_schema, DEPARTMENT_SCHEMAS
 
 init_db()
@@ -187,40 +187,76 @@ def shapely_iou(ring1: list, ring2: list) -> float:
         return bbox_iou(ring1, ring2)
 
 
-def calculate_dsm_slope(lon: float, lat: float, area_id: str = "pune_kharadi") -> tuple[float, float, bool]:
+def calculate_dsm_slope_from_points(
+    lon: float, lat: float, dsm_points: list[dict]
+) -> tuple[float | None, float | None, bool | None]:
     """
-    Calculate real DSM terrain elevation and slope gradient (%) at parcel centroid.
-    Uses cached high-resolution elevation points or fallback to Open-Elevation.
-    Returns (elevation_m, slope_gradient_pct, is_steep_flag).
+    Calculate terrain elevation and slope gradient at a given lon/lat using
+    pre-parsed DSM/DTM sample points from the uploaded investigation source.
+    Uses inverse distance weighting (IDW) interpolation.
+    Returns (elevation_m, slope_pct, is_steep) or (None, None, None) if no DSM.
     """
-    elev_file = DATA_DIR / "elevation" / "pune_elevation_samples.json"
-    base_elev = 562.0
-    slope_pct = 4.5
-    if elev_file.exists():
-        try:
-            elev_data = json.loads(elev_file.read_text(encoding="utf-8"))
-            area_info = elev_data.get(area_id, elev_data.get("pune_kharadi", {}))
-            base_elev = float(area_info.get("base_elevation_m", 562.0))
-            pts = area_info.get("points", [])
-            if pts:
-                # Inverse distance weighted elevation from real sample points
-                weights = []
-                elevs = []
-                for pt in pts:
-                    d = math.hypot(lon - pt["lon"], lat - pt["lat"]) or 1e-6
-                    w = 1.0 / (d * d)
-                    weights.append(w)
-                    elevs.append(pt["elevation_m"] * w)
-                est_elev = sum(elevs) / sum(weights)
-                # Compute gradient over distance from reference center
-                c = area_info.get("center", [lon, lat])
-                dist_m = geo_distance_m((lon, lat), (c[0], c[1]))
-                elev_diff = abs(est_elev - base_elev)
-                slope_pct = round((elev_diff / (dist_m or 10.0)) * 100.0 + area_info.get("mean_slope_pct", 5.4), 1)
-                return round(est_elev, 1), slope_pct, slope_pct > 12.0
-        except Exception:
-            pass
-    return round(base_elev, 1), slope_pct, False
+    if not dsm_points:
+        return None, None, None
+
+    try:
+        weights = []
+        elevs = []
+        for pt in dsm_points:
+            pt_lon = float(pt.get("longitude") or pt.get("lon") or pt.get("x") or 0)
+            pt_lat = float(pt.get("latitude") or pt.get("lat") or pt.get("y") or 0)
+            elev = float(
+                pt.get("dsm_elevation_m") or pt.get("elevation_m") or
+                pt.get("dtm_elevation_m") or pt.get("z") or 0
+            )
+            d = math.hypot(lon - pt_lon, lat - pt_lat) or 1e-9
+            w = 1.0 / (d * d)
+            weights.append(w)
+            elevs.append(elev * w)
+
+        if not weights:
+            return None, None, None
+
+        est_elev = sum(elevs) / sum(weights)
+
+        # Compute slope from nearest 4 points (finite difference approximation)
+        sorted_pts = sorted(
+            dsm_points,
+            key=lambda p: math.hypot(
+                lon - float(p.get("longitude") or p.get("lon") or p.get("x") or 0),
+                lat - float(p.get("latitude") or p.get("lat") or p.get("y") or 0)
+            )
+        )[:8]
+        if len(sorted_pts) >= 2:
+            rise_sum = 0.0
+            run_sum = 0.0
+            for j in range(1, len(sorted_pts)):
+                p0 = sorted_pts[0]
+                pj = sorted_pts[j]
+                lon0 = float(p0.get("longitude") or p0.get("lon") or p0.get("x") or 0)
+                lat0 = float(p0.get("latitude") or p0.get("lat") or p0.get("y") or 0)
+                e0 = float(
+                    p0.get("dsm_elevation_m") or p0.get("elevation_m") or
+                    p0.get("dtm_elevation_m") or p0.get("z") or 0
+                )
+                lonj = float(pj.get("longitude") or pj.get("lon") or pj.get("x") or 0)
+                latj = float(pj.get("latitude") or pj.get("lat") or pj.get("y") or 0)
+                ej = float(
+                    pj.get("dsm_elevation_m") or pj.get("elevation_m") or
+                    pj.get("dtm_elevation_m") or pj.get("z") or 0
+                )
+                run_m = geo_distance_m((lon0, lat0), (lonj, latj)) or 1.0
+                rise_sum += abs(ej - e0)
+                run_sum += run_m
+            slope_pct = round((rise_sum / run_sum) * 100.0, 1) if run_sum > 0 else 0.0
+        else:
+            slope_pct = None
+
+        return round(est_elev, 1), slope_pct, (slope_pct > 12.0 if slope_pct is not None else None)
+    except Exception:
+        return None, None, None
+
+
 
 
 # ── P1: Real Candidate Correspondence Engine ─────────────────────────────────
@@ -291,20 +327,17 @@ def build_correspondence_set(
         # Sort by score descending
         candidates.sort(key=lambda c: c["score"], reverse=True)
 
-        # Fallback: if nothing within radius, use index-matched (always has a fallback)
+        # No match within search radius — mark as unmatched, never force a correspondence
         if not candidates:
-            fallback_idx = i % len(drone_features)
-            fallback_ring = drone_features[fallback_idx]["geometry"]["coordinates"][0]
-            fallback_cen = poly_centroid(fallback_ring)
-            dist_m = geo_distance_m(cad_cen, fallback_cen)
-            candidates = [{
-                "drone_idx": fallback_idx,
-                "building_id": drone_features[fallback_idx]["properties"].get("id", f"building-{fallback_idx}"),
-                "score": 0.1,
-                "centroid_dist_m": round(dist_m, 2),
-                "area_ratio": 0.1,
-                "iou": 0.0,
-            }]
+            correspondences.append({
+                "cad_idx": i,
+                "drone_idx": None,
+                "match_confidence": None,
+                "ambiguous_match": False,
+                "unmatched": True,
+                "top_candidates": [],
+            })
+            continue
 
         top = candidates[0]
         # Ambiguous: low score OR top-2 within margin
@@ -317,6 +350,7 @@ def build_correspondence_set(
             "drone_idx": top["drone_idx"],
             "match_confidence": top["score"],
             "ambiguous_match": ambiguous,
+            "unmatched": False,
             "top_candidates": candidates[:3],  # expose runner-ups for Evidence Card
         })
 
@@ -391,14 +425,23 @@ def ransac_filter(
             best_inliers = inliers
 
     if len(best_inliers) < min_sample:
-        best_inliers = list(range(n))  # degenerate fallback: keep all
+        # Insufficient control points — do not pretend all are inliers
+        return {
+            "inlier_indices": [],
+            "inlier_ratio": None,
+            "inlier_count": 0,
+            "total_correspondences": n,
+            "iterations": n_iter,
+            "registration_status": "insufficient_control_points",
+        }
 
     return {
         "inlier_indices": best_inliers,
-        "inlier_ratio": round(len(best_inliers) / n, 4),
+        "inlier_ratio": round(len(best_inliers) / n, 4),  # always fraction 0.0–1.0
         "inlier_count": len(best_inliers),
         "total_correspondences": n,
         "iterations": n_iter,
+        "registration_status": "ok",
     }
 
 
@@ -646,7 +689,16 @@ def parse_investigation_file_content(filename: str, content: bytes, source_key: 
             crs_detected = "EPSG:32643"
         else:
             crs_detected = "WGS84 (EPSG:4326)"
-        data_str = text
+        # Parse CSV into JSON list of dicts for downstream consumption
+        try:
+            import csv as _csv, io as _io
+            reader = _csv.DictReader(_io.StringIO(text))
+            rows = [dict(row) for row in reader]
+            feat_count = len(rows)
+            data_str = json.dumps(rows)
+        except Exception:
+            data_str = text  # fallback: store raw text
+
 
     elif ext in (".tif", ".tiff"):
         file_format = "GeoTIFF"
@@ -958,44 +1010,171 @@ def list_reports_for_investigation(inv_id: str) -> list[dict[str, Any]]:
 
 
 
+
+# ── Type-safe coercion helpers ───────────────────────────────────────────────
+def _safe_float(val: Any) -> float | None:
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(val: Any) -> int | None:
+    if val is None or val == "":
+        return None
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_bool(val: Any) -> bool | None:
+    if val is None or val == "":
+        return None
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    if s in ("true", "yes", "1", "y"):
+        return True
+    if s in ("false", "no", "0", "n"):
+        return False
+    return None
+
+
 @app.post("/harmonize")
 def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
     """
-    Live Geometric Registration:
-    1. Real candidate correspondence engine (centroid + area ratio + IoU scoring)
-    2. Real RANSAC outlier rejection (150 iterations, 3-point minimal sample)
-    3. True TPS or Affine fit on RANSAC inlier set
-    4. Per-parcel residuals + directional coherence change detection
-    5. Dynamic evidence fusion with authority weights
+    Investigation-Scoped Geometric Registration Engine.
+    Loads all sources from investigation_sources (DB) or from custom_layers.
+    Returns HTTP 422 when cadastral and building footprints are both absent.
+    No STUDY_AREAS fallback. No revenue_data.py. No hardcoded confidence.
     """
-    area = STUDY_AREAS.get(req.area_id, STUDY_AREAS["pune_kharadi"])
-    # Use custom uploaded layers if provided, otherwise fall back to preloaded demo data
-    if req.custom_layers and req.custom_layers.get("cadastral"):
-        cad_features = req.custom_layers["cadastral"].get("features", area["cadastral"]["features"])
-    else:
-        cad_features = area["cadastral"]["features"]
-    if req.custom_layers and req.custom_layers.get("buildings"):
-        drone_features = req.custom_layers["buildings"].get("features", area["buildings"]["features"])
-    else:
-        drone_features = area["buildings"]["features"]
-    num_parcels = len(cad_features)
+    # ── Load cadastral and buildings ─────────────────────────────────────────
+    cad_features: list[dict] = []
+    drone_features: list[dict] = []
+    gnss_points: list[dict] = []
+    dsm_points: list[dict] = []
+    revenue_map: dict[str, dict] = {}
 
-    # Compute bounds dynamically from actual features when custom data was uploaded
-    if req.custom_layers and req.custom_layers.get("cadastral") and cad_features:
-        all_pts: list[list[float]] = []
-        for feat in cad_features:
+    # Priority 1: custom_layers passed directly in request (already loaded GeoJSON)
+    if req.custom_layers:
+        if req.custom_layers.get("cadastral"):
+            cad_features = req.custom_layers["cadastral"].get("features", [])
+        if req.custom_layers.get("buildings"):
+            drone_features = req.custom_layers["buildings"].get("features", [])
+
+    # Priority 2: investigation_id — load from DB sources
+    if req.investigation_id:
+        sources = get_investigation_sources(req.investigation_id)
+
+        def _parse_source_geojson(sk: str) -> list[dict]:
+            s = sources.get(sk)
+            if not s or not s.get("data_json"):
+                return []
             try:
-                all_pts.extend(feat["geometry"]["coordinates"][0])
+                gj = json.loads(s["data_json"])
+                if isinstance(gj, dict) and "features" in gj:
+                    return gj["features"]
             except Exception:
                 pass
-        if all_pts:
-            _lons = [p[0] for p in all_pts]
-            _lats = [p[1] for p in all_pts]
-            area_bounds = [min(_lons), min(_lats), max(_lons), max(_lats)]
-        else:
-            area_bounds = area.get("bounds", [73.77, 18.56, 73.78, 18.57])
+            return []
+
+        def _parse_source_csv_rows(sk: str) -> list[dict]:
+            s = sources.get(sk)
+            if not s or not s.get("data_json"):
+                return []
+            try:
+                raw = s["data_json"]
+                # Stored as JSON list of dicts (normalized during upload)
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return parsed
+                # Stored as raw CSV text
+                import csv, io
+                reader = csv.DictReader(io.StringIO(raw))
+                return list(reader)
+            except Exception:
+                return []
+
+        if not cad_features:
+            cad_features = _parse_source_geojson("cadastral")
+        if not drone_features:
+            drone_features = _parse_source_geojson("buildings")
+
+        # Load GNSS control points (CSV with lat/lon/accuracy columns)
+        gnss_raw = _parse_source_csv_rows("gnss")
+        for row in gnss_raw:
+            try:
+                lat = float(row.get("latitude") or row.get("lat") or row.get("y") or 0)
+                lon = float(row.get("longitude") or row.get("lon") or row.get("x") or 0)
+                if lat != 0 or lon != 0:
+                    gnss_points.append({
+                        "lon": lon, "lat": lat,
+                        "h_acc_m": _safe_float(row.get("horizontal_accuracy_m") or row.get("h_acc") or row.get("accuracy_m")),
+                        "fix_type": row.get("fix_type") or row.get("type") or "unknown",
+                        "obs_time": row.get("observation_time") or row.get("time") or None,
+                    })
+            except Exception:
+                continue
+
+        # Load DSM/DTM elevation points (CSV)
+        dsm_raw = _parse_source_csv_rows("dsm")
+        for row in dsm_raw:
+            try:
+                lat = float(row.get("latitude") or row.get("lat") or row.get("y") or 0)
+                lon = float(row.get("longitude") or row.get("lon") or row.get("x") or 0)
+                if lat != 0 or lon != 0:
+                    dsm_points.append(row)
+            except Exception:
+                continue
+
+        # Load revenue records (CSV keyed by parcel_id)
+        rev_raw = _parse_source_csv_rows("revenue")
+        for row in rev_raw:
+            pid = str(row.get("parcel_id") or row.get("plot_no") or row.get("survey_no") or "").strip()
+            if pid:
+                revenue_map[pid] = {
+                    "parcel_id": pid,
+                    "khata_no": row.get("khata_no") or row.get("khata") or None,
+                    "khasra_no": row.get("khasra_no") or row.get("survey_no") or None,
+                    "seven_twelve_no": row.get("seven_twelve_extract_no") or row.get("7_12_no") or None,
+                    "area_recorded_sqm": _safe_float(row.get("area_recorded_sqm") or row.get("area_sqm")),
+                    "encumbrance_flag": _safe_bool(row.get("encumbrance_flag") or row.get("encumbrance")),
+                    "dispute_flag": _safe_bool(row.get("dispute_flag") or row.get("dispute")),
+                    "mutation_count": _safe_int(row.get("mutation_count")),
+                    "record_status": row.get("record_status") or row.get("status") or None,
+                    "owner": row.get("owner_name") or row.get("owner_of_record") or None,
+                    "land_use": row.get("land_use_class") or row.get("land_use") or None,
+                }
+
+    # ── Validate minimum required sources ────────────────────────────────────
+    if not cad_features:
+        return JSONResponse(status_code=422, content={
+            "error": "INSUFFICIENT_SOURCES",
+            "message": "Cadastral layer is required for harmonization. Upload cadastral source first.",
+        })
+    if not drone_features:
+        return JSONResponse(status_code=422, content={
+            "error": "INSUFFICIENT_SOURCES",
+            "message": "Building footprint layer is required for harmonization. Upload building footprints source first.",
+        })
+
+    # ── Compute metric scale from data extent ────────────────────────────────
+    all_pts: list[list[float]] = []
+    for feat in cad_features:
+        try:
+            all_pts.extend(feat["geometry"]["coordinates"][0])
+        except Exception:
+            pass
+    if all_pts:
+        _lons = [p[0] for p in all_pts]
+        _lats = [p[1] for p in all_pts]
+        area_bounds = [min(_lons), min(_lats), max(_lons), max(_lats)]
     else:
-        area_bounds = area.get("bounds", [73.77, 18.56, 73.78, 18.57])
+        area_bounds = [73.77, 18.56, 73.78, 18.57]
+
     MID_LAT = (area_bounds[1] + area_bounds[3]) / 2.0
     LAT_SCALE = 111139.0
     LON_SCALE = 111139.0 * math.cos(math.radians(MID_LAT))
@@ -1006,6 +1185,8 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
     def m_to_deg(mx: float, my: float) -> tuple[float, float]:
         return mx / LON_SCALE, my / LAT_SCALE
 
+    num_parcels = len(cad_features)
+
     # ── P1: Correspondence engine ────────────────────────────────────────────
     correspondences = build_correspondence_set(
         cad_features, drone_features, LON_SCALE, LAT_SCALE,
@@ -1014,10 +1195,13 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
         ambiguity_margin=0.08,
     )
 
-    # Build control point pairs from correspondence result
+    # Only use matched correspondences for control point extraction
+    matched_corr = [c for c in correspondences if not c.get("unmatched")]
+
+    # Build control point pairs from matched correspondences
     all_src_m: list[tuple[float, float]] = []
     all_tgt_m: list[tuple[float, float]] = []
-    for corr in correspondences:
+    for corr in matched_corr:
         cad = cad_features[corr["cad_idx"]]
         drone = drone_features[corr["drone_idx"]]
         c_cad = poly_centroid(cad["geometry"]["coordinates"][0])
@@ -1031,17 +1215,29 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
         n_iter=150, min_sample=3,
         inlier_threshold_m=2.0,
     )
-    inlier_idx = ransac_result["inlier_indices"]
+
+    registration_ok = ransac_result.get("registration_status") == "ok"
+    inlier_idx = ransac_result.get("inlier_indices", [])
     inlier_src = [all_src_m[k] for k in inlier_idx]
     inlier_tgt = [all_tgt_m[k] for k in inlier_idx]
 
-    # ── P3: True TPS or Affine fit on RANSAC inlier set ─────────────────────
-    if req.model == "tps":
-        transform_m = solve_tps_2d(inlier_src, inlier_tgt)
-        model_label = "True TPS (r²log(r) kernel, RANSAC-filtered)"
+    # ── P3: Transformation model ─────────────────────────────────────────────
+    if registration_ok and len(inlier_src) >= 3:
+        if req.model == "tps":
+            transform_m = solve_tps_2d(inlier_src, inlier_tgt)
+            model_label = "True TPS (r²log(r) kernel, RANSAC-filtered)"
+        else:
+            transform_m = solve_affine_2d(inlier_src, inlier_tgt)
+            model_label = "Affine (6-parameter, RANSAC-filtered)"
     else:
-        transform_m = solve_affine_2d(inlier_src, inlier_tgt)
-        model_label = "Affine (6-parameter, RANSAC-filtered)"
+        # Translation-only fallback when insufficient control points
+        if all_src_m and all_tgt_m:
+            dx = sum(t[0] - s[0] for s, t in zip(all_src_m, all_tgt_m)) / len(all_src_m)
+            dy = sum(t[1] - s[1] for s, t in zip(all_src_m, all_tgt_m)) / len(all_src_m)
+        else:
+            dx, dy = 0.0, 0.0
+        transform_m = lambda p: (p[0] + dx, p[1] + dy)
+        model_label = "Translation-only (insufficient control points for full registration)"
 
     def transform_fn(lon_lat: tuple[float, float]) -> tuple[float, float]:
         mx, my = deg_to_m(*lon_lat)
@@ -1051,17 +1247,70 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
     # ── Apply transformation, build residuals ────────────────────────────────
     harmonized_features = []
     residuals = []
-    sum_sq_err = 0.0
-    max_residual = 0.0
-    displacements = []
-
-    revenue_map = {r["parcel_id"]: r for r in get_revenue_records(req.area_id)}
+    sum_sq_post = 0.0
+    max_pre_displacement = 0.0
+    max_post_residual = 0.0
+    post_displacements = []
+    pre_displacements = []
 
     for corr in correspondences:
         i = corr["cad_idx"]
         cad = cad_features[i]
-        drone = drone_features[corr["drone_idx"]]
         cad_ring = cad["geometry"]["coordinates"][0]
+
+        pid = cad["properties"].get("parcel_id", str(101 + i))
+        pnum = cad["properties"].get("parcel_number", 101 + i)
+        area_sqm = cad["properties"].get("area_sqm") or cad["properties"].get("area")
+
+        if corr.get("unmatched"):
+            # No building match found — report as unmatched
+            c_cad_orig = poly_centroid(cad_ring)
+            harmonized_features.append({
+                "type": "Feature",
+                "id": f"unmatched-parcel-{pid}",
+                "geometry": {"type": "Polygon", "coordinates": [cad_ring]},
+                "properties": {
+                    "id": f"unmatched-parcel-{pid}",
+                    "parcel_id": pid,
+                    "parcel_number": pnum,
+                    "label": f"Unmatched Parcel {pid}",
+                    "source_type": "unmatched",
+                    "status": "no_building_match",
+                    "residual_m": None,
+                },
+            })
+            residuals.append({
+                "case_id": f"case-{pid}",
+                "parcel_id": f"parcel-{pid}",
+                "parcel_num": pnum,
+                "building_id": None,
+                "from": [round(c_cad_orig[0], 8), round(c_cad_orig[1], 8)],
+                "to": None,
+                "pre_alignment_displacement_m": None,
+                "post_alignment_residual_m": None,
+                "magnitude_m": None,
+                "displacement": "No match",
+                "risk": "unmatched",
+                "confidence": None,
+                "area_sqm": area_sqm,
+                "heatColor": "#94a3b8",
+                "elevation_m": None,
+                "slope_gradient_pct": None,
+                "elevation_flag": None,
+                "match_confidence": None,
+                "ambiguous_match": False,
+                "unmatched": True,
+                "match_candidates": [],
+                "revenue_record": revenue_map.get(str(pid)),
+                "gnss_nearest": None,
+                "temporal": {"classification": "unmatched", "confidence": None, "explanation": "No building correspondence found.", "coherence": None},
+                "score_breakdown": {},
+                "state": "Unmatched — No Building Correspondence",
+                "sources_used": [],
+            })
+            continue
+
+        drone = drone_features[corr["drone_idx"]]
         drone_ring = drone["geometry"]["coordinates"][0]
 
         aligned_ring = [list(transform_fn((pt[0], pt[1]))) for pt in cad_ring]
@@ -1071,17 +1320,20 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
         c_aligned = poly_centroid(aligned_ring)
         c_drone = poly_centroid(drone_ring)
 
-        post_align_residual_m = geo_distance_m(c_aligned, c_drone)
-        orig_dist_m = geo_distance_m(c_cad_orig, c_drone)
+        # Pre-alignment: distance from original cadastral → observed building centroid
+        pre_dist_m = geo_distance_m(c_cad_orig, c_drone)
+        # Post-alignment: residual of aligned cadastral → observed building centroid
+        post_dist_m = geo_distance_m(c_aligned, c_drone)
 
-        displacements.append(post_align_residual_m)
-        sum_sq_err += post_align_residual_m * post_align_residual_m
-        if orig_dist_m > max_residual:
-            max_residual = orig_dist_m
+        pre_displacements.append(pre_dist_m)
+        post_displacements.append(post_dist_m)
+        sum_sq_post += post_dist_m * post_dist_m
+        if pre_dist_m > max_pre_displacement:
+            max_pre_displacement = pre_dist_m
+        if post_dist_m > max_post_residual:
+            max_post_residual = post_dist_m
 
-        pid = cad["properties"].get("parcel_id", str(101 + i))
-        pnum = cad["properties"].get("parcel_number", 101 + i)
-        risk = "high" if orig_dist_m >= 2.5 else ("medium" if orig_dist_m >= 1.0 else "low")
+        risk = "high" if post_dist_m >= 2.5 else ("medium" if post_dist_m >= 1.0 else "low")
         heat_color = "#ef4444" if risk == "high" else ("#f59e0b" if risk == "medium" else "#22c55e")
 
         harmonized_features.append({
@@ -1095,12 +1347,34 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
                 "label": f"Harmonized Parcel {pid}",
                 "source_type": "harmonized_version",
                 "status": "validated_topology_pass",
-                "residual_m": round(post_align_residual_m, 2),
+                "residual_m": round(post_dist_m, 2),
             },
         })
 
-        # Real DSM slope and elevation calculation at parcel centroid (PS-26013 Part A)
-        elev_m, slope_pct, is_steep = calculate_dsm_slope(c_cad_orig[0], c_cad_orig[1], req.area_id)
+        # DSM elevation from uploaded data (None when not uploaded)
+        elev_m, slope_pct, is_steep = calculate_dsm_slope_from_points(
+            c_cad_orig[0], c_cad_orig[1], dsm_points
+        )
+
+        # Nearest GNSS point evidence
+        gnss_nearest = None
+        gnss_dist_m = None
+        if gnss_points:
+            best_gd = float("inf")
+            for gp in gnss_points:
+                d = geo_distance_m((c_cad_orig[0], c_cad_orig[1]), (gp["lon"], gp["lat"]))
+                if d < best_gd:
+                    best_gd = d
+                    gnss_nearest = {**gp, "distance_to_parcel_m": round(d, 2)}
+            gnss_dist_m = round(best_gd, 2)
+
+        sources_used = ["cadastral", "buildings"]
+        if gnss_points:
+            sources_used.append("gnss")
+        if dsm_points:
+            sources_used.append("dsm")
+        if revenue_map.get(str(pid)):
+            sources_used.append("revenue")
 
         residuals.append({
             "case_id": f"case-{pid}",
@@ -1109,44 +1383,40 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
             "building_id": corr["top_candidates"][0]["building_id"] if corr["top_candidates"] else f"building-{pid}",
             "from": [round(c_cad_orig[0], 8), round(c_cad_orig[1], 8)],
             "to": [round(c_drone[0], 8), round(c_drone[1], 8)],
-            "magnitude_m": round(orig_dist_m, 2),
-            "displacement": f"{orig_dist_m:.2f} m",
+            "pre_alignment_displacement_m": round(pre_dist_m, 2),
+            "post_alignment_residual_m": round(post_dist_m, 2),
+            "magnitude_m": round(post_dist_m, 2),
+            "displacement": f"{post_dist_m:.2f} m",
             "risk": risk,
-            "confidence": 0.8,
-            "area_sqm": cad["properties"].get("area_sqm", 1250.0),
+            "confidence": None,  # computed after coherence pass below
+            "area_sqm": area_sqm,
             "heatColor": heat_color,
             "elevation_m": elev_m,
             "slope_gradient_pct": slope_pct,
             "elevation_flag": is_steep,
-            # P1 — Correspondence scores exposed
             "match_confidence": corr["match_confidence"],
             "ambiguous_match": corr["ambiguous_match"],
+            "unmatched": False,
             "match_candidates": corr["top_candidates"],
-            # Revenue record joined by parcel_id
-            "revenue_record": revenue_map.get(pid),
-            "temporal": {
-                "classification": "registration_error",
-                "confidence": 0.85,
-                "explanation": "",
-                "coherence": 0.9,
-            },
-            "score_breakdown": {
-                "authority": req.authorityWeights.cadastral,
-                "positional_accuracy": 0.85,
-                "temporal_relevance": 0.8,
-                "cross_source_agreement": 0.8,
-            },
+            "revenue_record": revenue_map.get(str(pid)),
+            "gnss_nearest": gnss_nearest,
+            "gnss_disagreement_m": gnss_dist_m,
+            "temporal": {"classification": None, "confidence": None, "explanation": "", "coherence": None},
+            "score_breakdown": {},
             "state": "Recommended for official review",
+            "sources_used": sources_used,
         })
 
     # ── Directional coherence (Change Detection Engine) ──────────────────────
-    for i, r in enumerate(residuals):
+    matched_residuals = [r for r in residuals if not r.get("unmatched")]
+
+    for i, r in enumerate(matched_residuals):
         c1 = r["from"]
         v1x = r["to"][0] - r["from"][0]; v1y = r["to"][1] - r["from"][1]
         len1 = math.hypot(v1x, v1y) or 1e-9
         dot_sum = 0.0; neighbor_count = 0
-        for j, other in enumerate(residuals):
-            if i == j:
+        for j, other in enumerate(matched_residuals):
+            if i == j or other.get("to") is None:
                 continue
             dist_m = geo_distance_m((other["from"][0], other["from"][1]), (c1[0], c1[1]))
             if dist_m < 200:
@@ -1154,76 +1424,139 @@ def harmonize(req: HarmonizeRequest) -> dict[str, Any]:
                 len2 = math.hypot(v2x, v2y) or 1e-9
                 dot_sum += (v1x*v2x + v1y*v2y) / (len1*len2)
                 neighbor_count += 1
-        coherence = dot_sum / neighbor_count if neighbor_count > 0 else 0.85
-        r["temporal"]["coherence"] = round(coherence, 2)
+        coherence = dot_sum / neighbor_count if neighbor_count > 0 else None
 
-        if r["magnitude_m"] > 2.6 and coherence > 0.8:
-            r["temporal"] = {"classification": "registration_error", "confidence": 0.88,
-                              "explanation": "Coherent uniform displacement with adjacent plots; consistent with datum shift.",
-                              "coherence": round(coherence, 2)}
-        elif r["magnitude_m"] > 2.0 and coherence < 0.45:
-            r["temporal"] = {"classification": "genuine_change", "confidence": 0.82,
-                              "explanation": "Localized spatial divergence; indicates modern physical change.",
-                              "coherence": round(coherence, 2)}
-        elif r["magnitude_m"] <= 0.8:
-            r["temporal"] = {"classification": "minor_fuzz", "confidence": 0.95,
-                              "explanation": "Residual within standard GNSS survey tolerance.",
-                              "coherence": round(coherence, 2)}
+        mag = r["magnitude_m"]
+        if coherence is None:
+            # Only one parcel — no spatial context
+            r["temporal"] = {
+                "classification": "needs_review",
+                "confidence": None,
+                "explanation": "Insufficient spatial context — only parcel in dataset.",
+                "coherence": None,
+            }
+        elif mag is not None and mag > 2.6 and coherence > 0.8:
+            r["temporal"] = {
+                "classification": "registration_error",
+                "confidence": round(min(0.95, 0.6 + coherence * 0.35), 2),
+                "explanation": "Coherent uniform displacement with adjacent plots; consistent with datum shift.",
+                "coherence": round(coherence, 2),
+            }
+        elif mag is not None and mag > 2.0 and coherence < 0.45:
+            r["temporal"] = {
+                "classification": "genuine_change",
+                "confidence": round(min(0.90, 0.5 + (1 - coherence) * 0.4), 2),
+                "explanation": "Localized spatial divergence; indicates modern physical change.",
+                "coherence": round(coherence, 2),
+            }
+        elif mag is not None and mag <= 0.8:
+            r["temporal"] = {
+                "classification": "minor_fuzz",
+                "confidence": round(min(0.98, 0.85 + (0.8 - mag) * 0.15), 2),
+                "explanation": "Residual within standard GNSS survey tolerance.",
+                "coherence": round(coherence, 2),
+            }
         else:
-            r["temporal"] = {"classification": "needs_review", "confidence": 0.58,
-                              "explanation": "Evidence below threshold; routed to human officer.",
-                              "coherence": round(coherence, 2)}
+            r["temporal"] = {
+                "classification": "needs_review",
+                "confidence": round(0.3 + abs(coherence) * 0.2, 2),
+                "explanation": "Evidence below threshold; routed to human officer.",
+                "coherence": round(coherence, 2),
+            }
 
-        # Evidence fusion
+        # ── Evidence-only confidence fusion ──────────────────────────────────
+        # Only include evidence that actually exists. Renormalize available weights.
         w = req.authorityWeights
-        total_w = w.cadastral + w.drone + w.gnss + w.municipal
-        agreement = max(0.0, 1.0 - r["magnitude_m"] / 6.0)
-        penalty = 0.2 if r["temporal"]["classification"] == "needs_review" else 0.0
-        raw_score = (
-            (w.cadastral*0.95 + w.drone*0.72 + w.gnss*0.85 + w.municipal*0.68) / total_w * 0.5
-            + agreement * 0.3
-            + r["temporal"]["confidence"] * 0.2
-            - penalty
-        )
-        fused_conf = round(max(0.1, min(1.0, raw_score)), 2)
+        evidence_scores: list[tuple[float, float]] = []
+
+        # Positional accuracy from post-alignment residual (always available)
+        pos_score = round(1.0 - min(1.0, (r["magnitude_m"] or 0) / 5.0), 2)
+        evidence_scores.append((pos_score, w.cadastral + w.drone))
+
+        # Temporal evidence (from coherence analysis)
+        t_conf = r["temporal"].get("confidence")
+        if t_conf is not None:
+            evidence_scores.append((t_conf, 0.3))
+
+        # GNSS evidence — only when uploaded
+        if gnss_points and r.get("gnss_nearest"):
+            gd = r.get("gnss_disagreement_m") or 0
+            gnss_score = round(max(0.0, 1.0 - gd / 10.0), 2)
+            evidence_scores.append((gnss_score, w.gnss))
+
+        # Revenue match evidence — only when record exists
+        rev_rec = r.get("revenue_record")
+        if rev_rec:
+            dispute = rev_rec.get("dispute_flag") or False
+            encumb = rev_rec.get("encumbrance_flag") or False
+            rev_score = round(0.7 - (0.2 if dispute else 0) - (0.1 if encumb else 0), 2)
+            evidence_scores.append((rev_score, w.municipal))
+
+        if evidence_scores:
+            total_weight = sum(wt for _, wt in evidence_scores)
+            raw_score = sum(sc * wt for sc, wt in evidence_scores) / total_weight if total_weight > 0 else 0.5
+            # Penalty for ambiguous match or needs_review
+            if r["ambiguous_match"]:
+                raw_score -= 0.12
+            if r["temporal"]["classification"] == "needs_review":
+                raw_score -= 0.08
+            fused_conf = round(max(0.05, min(1.0, raw_score)), 2)
+        else:
+            fused_conf = None
+
         r["confidence"] = fused_conf
 
-        # Route to DND if ambiguous match OR low confidence
-        if r["ambiguous_match"] or fused_conf < (req.dndThreshold / 100.0) or r["temporal"]["classification"] == "needs_review":
+        # Route to DND if ambiguous OR low confidence
+        if r["ambiguous_match"]:
+            r["state"] = "Do Not Decide — Ambiguous Match"
+        elif fused_conf is not None and fused_conf < (req.dndThreshold / 100.0):
             r["state"] = "Needs Review / Do Not Decide"
-            if r["ambiguous_match"]:
-                r["state"] = "Do Not Decide — Ambiguous Match"
+        elif r["temporal"]["classification"] == "needs_review":
+            r["state"] = "Needs Review / Do Not Decide"
         else:
             r["state"] = "Recommended for official review"
 
+        # Score breakdown — all computed from actual evidence
         r["score_breakdown"] = {
-            "authority": round((w.cadastral * 0.95) / (w.cadastral or 1.0), 2),
-            "positional_accuracy": round(1.0 - min(1.0, r["magnitude_m"] / 5.0), 2),
-            "temporal_relevance": round(r["temporal"]["confidence"], 2),
-            "cross_source_agreement": round(agreement, 2),
+            "positional_accuracy": pos_score,
+            "temporal_relevance": t_conf,  # None when insufficient context
+            "cross_source_agreement": round(1.0 - min(1.0, (r["magnitude_m"] or 0) / 6.0), 2),
+            "gnss_evidence": round(max(0.0, 1.0 - (r.get("gnss_disagreement_m") or 0) / 10.0), 2) if gnss_points and r.get("gnss_nearest") else None,
+            "revenue_evidence": rev_score if rev_rec else None,
+            "evidence_sources_available": len(sources_used),
         }
 
-    rmse = round(math.sqrt(sum_sq_err / (num_parcels or 1)), 2)
-    mean_res = round(sum(displacements) / (num_parcels or 1), 2)
-    dnd_count = sum(1 for r in residuals if "Do Not Decide" in r["state"])
+    rmse = round(math.sqrt(sum_sq_post / len(post_displacements)), 2) if post_displacements else None
+    mean_res = round(sum(post_displacements) / len(post_displacements), 2) if post_displacements else None
+    dnd_count = sum(1 for r in residuals if "Do Not Decide" in (r.get("state") or "") or "Needs Review" in (r.get("state") or ""))
 
     return {
         "model": req.model,
         "model_label": model_label,
         "correspondence_method": "Scored matching: centroid distance + area ratio + Shapely IoU",
+        "registration_status": ransac_result.get("registration_status", "ok"),
         "rmse": rmse,
         "mean_residual": mean_res,
-        "max_residual": round(max_residual, 2),
-        "inlier_ratio": ransac_result["inlier_ratio"],
-        "ransac_inlier_count": ransac_result["inlier_count"],
-        "ransac_iterations": ransac_result["iterations"],
+        "max_pre_displacement_m": round(max_pre_displacement, 2) if pre_displacements else None,
+        "max_post_residual_m": round(max_post_residual, 2) if post_displacements else None,
+        "max_residual": round(max_post_residual, 2) if post_displacements else None,
+        "inlier_ratio": ransac_result.get("inlier_ratio"),  # fraction 0.0–1.0
+        "ransac_inlier_count": ransac_result.get("inlier_count"),
+        "ransac_iterations": ransac_result.get("iterations"),
         "control_points_used": len(inlier_src),
         "total_correspondences": len(correspondences),
+        "matched_correspondences": len(matched_corr),
+        "unmatched_parcels": len(correspondences) - len(matched_corr),
         "dnd_count": dnd_count,
-        "auto_resolved_count": len(residuals) - dnd_count,
+        "auto_resolved_count": len(matched_residuals) - dnd_count,
+        "gnss_points_loaded": len(gnss_points),
+        "dsm_points_loaded": len(dsm_points),
+        "revenue_records_loaded": len(revenue_map),
         "residuals": residuals,
         "harmonized": {"type": "FeatureCollection", "features": harmonized_features},
     }
+
+
 
 
 @app.post("/validate")
@@ -1897,14 +2230,11 @@ if HAS_MULTIPART:
             # Return genuine classical CV structure
             return {
                 "method": "Classical CV: Contour Polygon Simplification",
-                "contours_found": 18,
-                "avg_confidence": 0.88,
-                "contours": [
-                    {"area_px": 1420.0, "perimeter_px": 172.0, "vertex_count": 4, "confidence": 0.91},
-                    {"area_px": 1180.0, "perimeter_px": 154.0, "vertex_count": 4, "confidence": 0.86},
-                    {"area_px": 1650.0, "perimeter_px": 188.0, "vertex_count": 5, "confidence": 0.87},
-                ],
-                "message": f"Classical CV extraction pipeline active: {e}",
+                "contours_found": None,
+                "avg_confidence": None,
+                "contours": [],
+                "status": "unavailable",
+                "message": f"CV extraction pipeline failed: {e}",
             }
 else:
     @app.post("/upload/geojson")
@@ -1918,31 +2248,27 @@ else:
                 "valid": True,
                 "valid_geometries": len(features),
                 "invalid_geometries": 0,
-                "bbox": [73.7731, 18.5604, 73.7758, 18.5628],
+                "bbox": None,
                 "crs_detected": "EPSG:4326 (WGS84)",
                 "message": f"Ingested {len(features)} features via JSON fallback.",
             }
         except Exception:
             return {
                 "filename": "upload.geojson",
-                "features": 24,
-                "valid": True,
-                "valid_geometries": 24,
-                "invalid_geometries": 0,
-                "bbox": [73.7731, 18.5604, 73.7758, 18.5628],
-                "crs_detected": "EPSG:4326 (WGS84)",
-                "message": "Multipart parsing active after python-multipart install.",
+                "features": 0,
+                "valid": False,
+                "message": "Upload failed — could not parse request body.",
             }
 
     @app.post("/upload/gnss-csv")
     async def upload_gnss_csv_fallback(request: Request) -> dict[str, Any]:
         return {
             "filename": "gnss.csv",
-            "points_parsed": 8,
-            "errors": [],
-            "message": "Multipart parsing active after python-multipart install.",
+            "points_parsed": 0,
+            "errors": ["Multipart form upload unavailable — install python-multipart."],
             "geojson": {"type": "FeatureCollection", "features": []},
         }
+
 
 
 @app.get("/audit/verify")

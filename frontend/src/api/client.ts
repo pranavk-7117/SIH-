@@ -1,8 +1,4 @@
-import { STUDY_AREAS, StudyArea } from "../studyAreas";
-import {
-  computeLiveHarmonization,
-  computeLiveTopology,
-  buildLiveEvidenceGraph,
+import type {
   HarmonizeResult,
   TopologyCheckResult,
   EvidenceGraphData,
@@ -25,7 +21,8 @@ export interface CustomLayersPayload {
 }
 
 export interface HarmonizeParams {
-  areaId: string;
+  areaId?: string;
+  investigationId?: string;
   model: "affine" | "tps";
   authorityWeights: {
     cadastral: number;
@@ -49,132 +46,115 @@ export interface ReviewDecisionPayload {
 
 class ApiClient {
   private backendAvailable: boolean | null = null;
+  private lastCheckTime = 0;
+  private readonly CHECK_TTL_MS = 15000;
 
   async checkBackend(): Promise<boolean> {
-    if (this.backendAvailable !== null) return this.backendAvailable;
+    const now = Date.now();
+    if (this.backendAvailable !== null && (now - this.lastCheckTime) < this.CHECK_TTL_MS) {
+      return this.backendAvailable;
+    }
     if (!API_BASE) {
       this.backendAvailable = false;
+      this.lastCheckTime = now;
       return false;
     }
     try {
-      const res = await fetch(`${API_BASE}/health`, { method: "GET", signal: AbortSignal.timeout(1500) });
+      const res = await fetch(`${API_BASE}/health`, { method: "GET", signal: AbortSignal.timeout(2000) });
       this.backendAvailable = res.ok;
     } catch {
       this.backendAvailable = false;
     }
+    this.lastCheckTime = now;
     return this.backendAvailable;
   }
 
-  getStudyArea(areaId: string): StudyArea {
-    return STUDY_AREAS[areaId] || STUDY_AREAS["pune_kharadi"];
-  }
-
   async runHarmonization(params: HarmonizeParams): Promise<HarmonizeResult> {
-    const area = this.getStudyArea(params.areaId);
-
-    // If backend is configured, attempt backend calculation
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/harmonize`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            area_id: params.areaId,
-            model: params.model,
-            authorityWeights: params.authorityWeights,
-            dndThreshold: params.dndThreshold,
-            custom_layers: params.customLayers,
-          }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          return json;
-        }
-      } catch (err) {
-        console.warn("Backend harmonize error, falling back to local geoEngine:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Harmonization unavailable: Backend server is offline or unreachable.");
     }
 
-    // Live In-Browser Computational Engine (Client-side math calculation)
-    const cad = params.customLayers?.cadastral || area.cadastral;
-    const drone = params.customLayers?.buildings || area.buildings;
-    const gnss = params.customLayers?.control || area.control;
-
-    return computeLiveHarmonization(
-      cad,
-      drone,
-      gnss,
-      {
+    const res = await fetch(`${API_BASE}/harmonize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        area_id: params.areaId,
+        investigation_id: params.investigationId,
         model: params.model,
         authorityWeights: params.authorityWeights,
         dndThreshold: params.dndThreshold,
+        custom_layers: params.customLayers,
+      }),
+    });
+
+    if (!res.ok) {
+      let message = `Harmonization failed (HTTP ${res.status})`;
+      try {
+        const errJson = await res.json();
+        if (errJson.message) message = errJson.message;
+        else if (errJson.error) message = errJson.error;
+      } catch {
+        const text = await res.text().catch(() => "");
+        if (text) message = text;
       }
-    );
+      throw new Error(message);
+    }
+
+    return await res.json();
   }
 
   async runTopologyCheck(harmonizedFC: GeoJSON.FeatureCollection): Promise<TopologyCheckResult[]> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/validate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ harmonized: harmonizedFC }),
-        });
-        if (res.ok) {
-          const json = await res.json();
-          return json.results;
-        }
-      } catch (err) {
-        console.warn("Backend topology error, falling back to local geoEngine:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Topology check unavailable: Backend server is offline.");
     }
 
-    return computeLiveTopology(harmonizedFC);
+    const res = await fetch(`${API_BASE}/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ harmonized: harmonizedFC }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Topology check failed with status ${res.status}`);
+    }
+
+    const json = await res.json();
+    return json.results;
   }
 
-  async getEvidenceGraph(areaId: string, residuals: ResidualCase[], customLayers?: CustomLayersPayload): Promise<EvidenceGraphData> {
-    const area = this.getStudyArea(areaId);
-
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/graph?area_id=${areaId}`);
-        if (res.ok) {
-          return await res.json();
-        }
-      } catch (err) {
-        console.warn("Backend graph error, falling back to local geoEngine:", err);
-      }
+  async getEvidenceGraph(areaId: string, residuals: ResidualCase[], customLayers?: CustomLayersPayload, investigationId?: string): Promise<EvidenceGraphData> {
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Evidence graph unavailable: Backend server is offline.");
     }
 
-    const cad = customLayers?.cadastral || area.cadastral;
-    const drone = customLayers?.buildings || area.buildings;
-    const gnss = customLayers?.control || area.control;
-    const municipal = customLayers?.municipal || area.municipal;
-
-    return buildLiveEvidenceGraph(
-      cad,
-      drone,
-      gnss,
-      municipal,
-      residuals
-    );
+    const query = investigationId ? `investigation_id=${investigationId}` : `area_id=${areaId}`;
+    const res = await fetch(`${API_BASE}/graph?${query}`);
+    if (!res.ok) {
+      throw new Error(`Evidence graph failed with status ${res.status}`);
+    }
+    return await res.json();
   }
 
   async submitReview(payload: ReviewDecisionPayload): Promise<{ version: number; stored: boolean }> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/review`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) return await res.json();
-      } catch (err) {
-        console.warn("Backend review error, storing locally:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Review submission failed: Backend server is offline. Decisions must be recorded authoritatively.");
     }
 
-    return { version: 2, stored: true };
+    const res = await fetch(`${API_BASE}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Review submission rejected by server (HTTP ${res.status})`);
+    }
+
+    return await res.json();
   }
 
   async getRevenueData(areaId: string) {
@@ -189,16 +169,18 @@ class ApiClient {
     return null;
   }
 
-  async verifyAuditChain(): Promise<{ chain_valid: boolean; tampered_at?: string | null; total_entries?: number }> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/audit/verify`);
-        if (res.ok) return await res.json();
-      } catch {
-        return { chain_valid: false };
-      }
+  async verifyAuditChain(): Promise<{ chain_valid: boolean; tampered_at?: string | null; total_entries?: number; error?: string }> {
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      return { chain_valid: false, error: "Audit chain verification unavailable: Backend offline" };
     }
-    return { chain_valid: true, tampered_at: null, total_entries: 6 };
+    try {
+      const res = await fetch(`${API_BASE}/audit/verify`);
+      if (res.ok) return await res.json();
+      return { chain_valid: false, error: `Audit check failed (HTTP ${res.status})` };
+    } catch {
+      return { chain_valid: false, error: "Audit check request failed" };
+    }
   }
 
   async getDepartmentExport(deptId: string, areaId: string) {
@@ -349,27 +331,17 @@ class ApiClient {
   }
 
   async extractBoundariesCV(file: File): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch(`${API_BASE}/cv/extract`, { method: "POST", body: form });
-        return await res.json();
-      } catch (err) {
-        console.warn("CV extraction server error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("CV extraction unavailable: Backend server is offline.");
     }
-    return {
-      method: "Classical CV: Canny edge detection + contour extraction + polygon simplification",
-      contours_found: 18,
-      avg_confidence: 0.86,
-      contours: Array.from({ length: 18 }, (_, i) => ({
-        area_px: 1240.0 + i * 45,
-        perimeter_px: 160.0 + i * 8,
-        vertex_count: 4,
-        confidence: 0.85 + (i % 5) * 0.02,
-      })),
-    };
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API_BASE}/cv/extract`, { method: "POST", body: form });
+    if (!res.ok) {
+      throw new Error(`CV extraction failed with status ${res.status}`);
+    }
+    return await res.json();
   }
 
   async createInvestigation(payload: {
@@ -381,203 +353,114 @@ class ApiClient {
     description?: string;
     parcels_count?: number;
   }): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        return data.investigation;
-      } catch (err) {
-        console.warn("createInvestigation error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Cannot create investigation: Backend server is offline.");
     }
-    const invId = payload.id || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    return {
-      id: invId,
-      name: payload.name,
-      city_area: payload.city_area || "Kharadi, Pune",
-      cadastral_year: payload.cadastral_year || "1960",
-      survey_year: payload.survey_year || "2024",
-      description: payload.description || "",
-      status: "IN_PROGRESS",
-      parcels_count: payload.parcels_count || 24,
-      current_step: 1,
-      created_at: new Date().toISOString(),
-      sources: {},
-      sources_list: [],
-    };
+    const res = await fetch(`${API_BASE}/investigations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to create investigation (HTTP ${res.status})`);
+    }
+    const data = await res.json();
+    return data.investigation;
   }
 
   async getInvestigations(): Promise<any[]> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations`);
-        return await res.json();
-      } catch (err) {
-        console.warn("getInvestigations error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      return [];
     }
-    return [
-      {
-        id: "INV-2026-0001",
-        name: "Kharadi Sector 12 — Demonstration",
-        city_area: "Kharadi, Pune",
-        cadastral_year: "1960",
-        survey_year: "2024",
-        description: "Demonstration dataset for SIH26013 - urban land harmonization (Synthetic Demonstration Dataset)",
-        status: "IN_PROGRESS",
-        parcels_count: 24,
-        current_step: 4,
-        created_at: "2026-09-02T10:00:00Z",
-      },
-    ];
+    const res = await fetch(`${API_BASE}/investigations`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch investigations (HTTP ${res.status})`);
+    }
+    return await res.json();
   }
 
   async getInvestigation(id: string): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations/${id}`);
-        if (res.ok) return await res.json();
-      } catch (err) {
-        console.warn("getInvestigation error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error(`Cannot load investigation ${id}: Backend server is offline.`);
     }
-    return {
-      id,
-      name: "Kharadi Sector 12 — Demonstration",
-      city_area: "Kharadi, Pune",
-      cadastral_year: "1960",
-      survey_year: "2024",
-      description: "Demonstration dataset for SIH26013 - urban land harmonization",
-      status: "IN_PROGRESS",
-      parcels_count: 24,
-      current_step: 1,
-      created_at: "2026-09-02T10:00:00Z",
-      sources: {},
-      sources_list: [],
-    };
+    const res = await fetch(`${API_BASE}/investigations/${id}`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch investigation ${id} (HTTP ${res.status})`);
+    }
+    return await res.json();
   }
 
   async uploadInvestigationSource(invId: string, sourceKey: string, file: File): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch(`${API_BASE}/investigations/${invId}/sources/${sourceKey}`, {
-          method: "POST",
-          body: form,
-        });
-        return await res.json();
-      } catch (err) {
-        console.warn("uploadInvestigationSource error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Source upload failed: Backend server is offline.");
     }
-    return {
-      status: "uploaded",
-      investigation_id: invId,
-      source: {
-        investigation_id: invId,
-        source_key: sourceKey,
-        filename: file.name,
-        file_format: file.name.split(".").pop()?.toUpperCase() || "GEOJSON",
-        original_crs: "EPSG:32643",
-        target_crs: "EPSG:32643",
-        features_count: 24,
-        status: "VALID",
-      },
-    };
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API_BASE}/investigations/${invId}/sources/${sourceKey}`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      throw new Error(`Upload failed (HTTP ${res.status}): ${err}`);
+    }
+    return await res.json();
   }
 
   async validateInvestigation(invId: string): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations/${invId}/validate`, { method: "POST" });
-        return await res.json();
-      } catch (err) {
-        console.warn("validateInvestigation error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Validation unavailable: Backend server is offline.");
     }
-    return {
-      investigation_id: invId,
-      valid: true,
-      sources_count: 9,
-      results: [
-        { source: "Cadastral", source_key: "cadastral", filename: "cadastral_1960.geojson", format: "GeoJSON", original_crs: "EPSG:4326", features: 24, status: "Valid", is_valid: true },
-        { source: "Drone Imagery", source_key: "drone", filename: "kharadi_ortho_2024.tif", format: "GeoTIFF", original_crs: "EPSG:32643", features: "Raster", status: "Valid", is_valid: true },
-        { source: "DSM / DTM", source_key: "dsm", filename: "dsm_dtm.tif", format: "GeoTIFF", original_crs: "EPSG:32643", features: "Raster", status: "Valid", is_valid: true },
-        { source: "GNSS / CORS", source_key: "gnss", filename: "gnss_2024.csv", format: "CSV", original_crs: "WGS84", features: 8, status: "Valid", is_valid: true },
-        { source: "Municipal GIS", source_key: "municipal", filename: "municipal.gpkg", format: "GPKG", original_crs: "EPSG:32643", features: 36, status: "Valid", is_valid: true },
-        { source: "Revenue Records", source_key: "revenue", filename: "revenue_7_12.csv", format: "CSV", original_crs: "-", features: 24, status: "Valid", is_valid: true },
-        { source: "Utility Networks", source_key: "utility", filename: "utility.gpkg", format: "GPKG", original_crs: "EPSG:32643", features: 18, status: "Valid", is_valid: true },
-        { source: "Building Footprints", source_key: "buildings", filename: "buildings.geojson", format: "GeoJSON", original_crs: "EPSG:32643", features: 24, status: "Valid", is_valid: true },
-        { source: "Ground Truth", source_key: "ground_truth", filename: "ground_truth.csv", format: "CSV", original_crs: "WGS84", features: 10, status: "Valid", is_valid: true },
-      ],
-    };
+    const res = await fetch(`${API_BASE}/investigations/${invId}/validate`, { method: "POST" });
+    if (!res.ok) {
+      throw new Error(`Validation failed (HTTP ${res.status})`);
+    }
+    return await res.json();
   }
 
   async normalizeInvestigationCRS(invId: string): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations/${invId}/normalize-crs`, { method: "POST" });
-        return await res.json();
-      } catch (err) {
-        console.warn("normalizeInvestigationCRS error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("CRS Normalization unavailable: Backend server is offline.");
     }
-    return {
-      investigation_id: invId,
-      normalized: true,
-      target_reference_crs: "EPSG:32643 (UTM Zone 43N)",
-      transformations: [
-        { source: "Cadastral", source_key: "cadastral", original_crs: "EPSG:4326", target_crs: "EPSG:32643", transformation: "Reprojected", status: "Completed" },
-        { source: "Drone Imagery", source_key: "drone", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
-        { source: "DSM / DTM", source_key: "dsm", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
-        { source: "GNSS / CORS", source_key: "gnss", original_crs: "WGS84", target_crs: "EPSG:32643", transformation: "Reprojected", status: "Completed" },
-        { source: "Municipal GIS", source_key: "municipal", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
-        { source: "Revenue Records", source_key: "revenue", original_crs: "-", target_crs: "Attribute only", transformation: "Attribute only", status: "Completed" },
-        { source: "Utility Networks", source_key: "utility", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
-        { source: "Building Footprints", source_key: "buildings", original_crs: "EPSG:32643", target_crs: "EPSG:32643", transformation: "No change", status: "Completed" },
-      ],
-    };
+    const res = await fetch(`${API_BASE}/investigations/${invId}/normalize-crs`, { method: "POST" });
+    if (!res.ok) {
+      throw new Error(`CRS Normalization failed (HTTP ${res.status})`);
+    }
+    return await res.json();
   }
 
   async createReport(invId: string, payload: { report_type: string; title: string; format: string; summary?: string; content?: string }): Promise<any> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations/${invId}/reports`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        return await res.json();
-      } catch (err) {
-        console.warn("createReport error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      throw new Error("Report creation failed: Backend server is offline.");
     }
-    return {
-      status: "saved",
-      report: {
-        id: `REP-${Date.now()}`,
-        investigation_id: invId,
-        ...payload,
-        created_at: new Date().toISOString(),
-      },
-    };
+    const res = await fetch(`${API_BASE}/investigations/${invId}/reports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to save report (HTTP ${res.status})`);
+    }
+    return await res.json();
   }
 
   async getReports(invId: string): Promise<any[]> {
-    if (await this.checkBackend()) {
-      try {
-        const res = await fetch(`${API_BASE}/investigations/${invId}/reports`);
-        if (res.ok) return await res.json();
-      } catch (err) {
-        console.warn("getReports error:", err);
-      }
+    const isOnline = await this.checkBackend();
+    if (!isOnline) {
+      return [];
     }
-    return [];
+    const res = await fetch(`${API_BASE}/investigations/${invId}/reports`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch reports (HTTP ${res.status})`);
+    }
+    return await res.json();
   }
 }
 

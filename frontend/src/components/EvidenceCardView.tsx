@@ -23,28 +23,44 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
 }) => {
   const [showInlineMap, setShowInlineMap] = useState<boolean>(false);
 
-  const parcelNum = selectedParcelId ? selectedParcelId.replace("parcel-", "") : "101";
   const residual =
     selectedCase ||
-    (data.residuals || []).find((r: AnyObj) => r.parcel_id === selectedParcelId) || {
-      magnitude_m: 2.45,
-      risk: "high",
-      confidence: 0.34,
-      area_sqm: 1250.45,
-      ambiguous_match: false,
-      match_candidates: [],
-    };
+    (data.residuals || []).find((r: AnyObj) => r.parcel_id === selectedParcelId || String(r.parcel_num) === selectedParcelId);
 
-  const confidencePct = Math.round((residual.confidence || 0.34) * 100);
-  const isHighTrust = confidencePct >= 70;
+  if (!residual) {
+    return (
+      <div className="page-container">
+        <div className="breadcrumb">
+          <span>Investigation</span>
+          <span>&gt;</span>
+          <span className="active">Evidence Card &amp; Recommendation</span>
+        </div>
+        <div className="bf-card" style={{ padding: "40px 20px", textAlign: "center", marginTop: "20px" }}>
+          <ShieldAlert size={36} style={{ color: "#94a3b8", margin: "0 auto 12px" }} />
+          <h3 style={{ fontSize: "16px", color: "#334155", marginBottom: "6px" }}>No Parcel Selected</h3>
+          <p style={{ fontSize: "13px", color: "#64748b", maxWidth: "420px", margin: "0 auto 16px" }}>
+            Select a parcel from the map or conflict dashboard to inspect its full evidence card, multi-source correspondence, and terrain context.
+          </p>
+          {onNavigate && (
+            <button className="btn-emerald" onClick={() => onNavigate("discrepancy")} style={{ margin: "0 auto" }}>
+              <span>Go to Discrepancy Map</span>
+              <ArrowRight size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const parcelNum = residual.parcel_num ? String(residual.parcel_num) : (selectedParcelId ? selectedParcelId.replace("parcel-", "") : "—");
+  const confidencePct = residual.confidence !== null && residual.confidence !== undefined ? Math.round(residual.confidence * 100) : null;
+  const isHighTrust = confidencePct !== null && confidencePct >= 70;
   const rev = residual.revenue_record;
   const meta = data.harmonize_meta || {};
 
-  // DSM / DTM slope modeling
-  const slopePercent = residual.slope_gradient_pct !== undefined
-    ? residual.slope_gradient_pct
-    : (Number(parcelNum) % 7) * 2.1 + 3.2; // 3.2% - 15.8% computed gradient
-  const isSteep = slopePercent > 12.0 || residual.elevation_flag;
+  // DSM / DTM slope from actual uploaded elevation data (null if not uploaded)
+  const slopePercent: number | null = residual.slope_gradient_pct !== undefined ? residual.slope_gradient_pct : null;
+  const isSteep = slopePercent !== null && (slopePercent > 12.0 || residual.elevation_flag);
 
   return (
     <div className="page-container">
@@ -113,10 +129,10 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#0f172a" }}>Parcel {parcelNum}</h2>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>GIS Area: {residual.area_sqm || "1250.45"} m²</span>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>GIS Area: {residual.area_sqm ? `${Number(residual.area_sqm).toFixed(1)} m²` : "—"}</span>
             </div>
-            <span className={`badge-pill ${residual.risk === "high" ? "high" : "medium"}`}>
-              {residual.risk === "high" ? "High Discrepancy" : "Medium Priority"}
+            <span className={`badge-pill ${residual.risk === "high" ? "high" : residual.risk === "low" ? "success" : "medium"}`}>
+              {residual.risk === "high" ? "High Discrepancy" : residual.risk === "low" ? "Low Risk" : residual.risk === "unmatched" ? "Unmatched" : "Medium Priority"}
             </span>
           </div>
 
@@ -128,30 +144,30 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
               </b>
             </div>
             <p style={{ fontSize: "11.5px", color: "#475569", lineHeight: "1.4" }}>
-              Displacement: <b>{residual.magnitude_m} m</b> | Classification: <b>{residual.temporal?.classification || "registration_error"}</b>. RANSAC Inlier Ratio: <b>{Math.round((meta.inlier_ratio || 0.92) * 100)}%</b> ({meta.control_points_used || 24} pts).
+              Displacement: <b>{residual.magnitude_m !== null && residual.magnitude_m !== undefined ? `${residual.magnitude_m} m` : "—"}</b> | Classification: <b>{residual.temporal?.classification || "Unavailable"}</b>. RANSAC Inlier Ratio: <b>{meta.inlier_ratio !== null && meta.inlier_ratio !== undefined ? `${Math.round(meta.inlier_ratio * 100)}%` : "—"}</b> ({meta.control_points_used ?? 0} pts).
             </p>
           </div>
 
-          {/* Revenue Records Layer (PS-26013 Non-Spatial Integration) */}
+          {/* Revenue Records Layer */}
           <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
               <FileSpreadsheet size={15} style={{ color: "#059669" }} />
-              <b style={{ fontSize: "12px", color: "#0f172a" }}>Simulated Revenue Attribute Layer</b>
+              <b style={{ fontSize: "12px", color: "#0f172a" }}>Revenue Attribute Record</b>
               <span className="badge-pill info" style={{ fontSize: "8.5px", marginLeft: "auto" }}>7/12 EXTRACT</span>
             </div>
             {rev ? (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontSize: "11px", color: "#475569" }}>
-                <div>Survey No: <b style={{ color: "#0f172a" }}>{rev.survey_number}</b></div>
-                <div>Khata No: <b style={{ color: "#0f172a" }}>{rev.khata_number}</b></div>
-                <div style={{ gridColumn: "span 2" }}>Owner: <b style={{ color: "#0f172a" }}>{rev.owner_of_record}</b></div>
-                <div>Land Use: <b style={{ color: "#0f172a" }}>{rev.land_use_class}</b></div>
-                <div>Mutation Date: <b style={{ color: "#0f172a" }}>{rev.last_mutation_date}</b></div>
-                <div>Encumbrance: <b style={{ color: rev.encumbrance ? "#ef4444" : "#10b981" }}>{rev.encumbrance ? "YES (Mortgaged)" : "NO (Clear)"}</b></div>
+                <div>Survey No: <b style={{ color: "#0f172a" }}>{rev.survey_number || rev.khasra_no || "—"}</b></div>
+                <div>Khata No: <b style={{ color: "#0f172a" }}>{rev.khata_number || rev.khata_no || "—"}</b></div>
+                <div style={{ gridColumn: "span 2" }}>Owner: <b style={{ color: "#0f172a" }}>{rev.owner_of_record || rev.owner || "—"}</b></div>
+                <div>Land Use: <b style={{ color: "#0f172a" }}>{rev.land_use_class || rev.land_use || "—"}</b></div>
+                <div>Mutation Date: <b style={{ color: "#0f172a" }}>{rev.last_mutation_date || "—"}</b></div>
+                <div>Encumbrance: <b style={{ color: rev.encumbrance || rev.encumbrance_flag ? "#ef4444" : "#10b981" }}>{rev.encumbrance || rev.encumbrance_flag ? "YES (Encumbered)" : "NO (Clear)"}</b></div>
                 <div>Dispute: <b style={{ color: rev.dispute_flag ? "#ef4444" : "#10b981" }}>{rev.dispute_flag ? "FLAGGED" : "NONE"}</b></div>
               </div>
             ) : (
               <div style={{ fontSize: "11px", color: "#94a3b8" }}>
-                Revenue records joined by Parcel ID: {parcelNum} (Maharashtra 7/12 format).
+                No revenue match for Parcel {parcelNum}. Upload revenue CSV to link legal records.
               </div>
             )}
           </div>
@@ -190,41 +206,55 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
 
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             <div className="evidence-star-row">
-              <span>Authority Score:</span>
-              <span className="star-rating">★★★★★ <small style={{ color: "#10b981", fontWeight: 700 }}>0.95</small></span>
+              <span>Authority Weight:</span>
+              <small style={{ color: "#10b981", fontWeight: 700 }}>{residual.score_breakdown?.authority ?? "0.95 (Configured)"}</small>
             </div>
             <div className="evidence-star-row">
               <span>GNSS Survey Support:</span>
-              <span className="star-rating">★★★★☆ <small style={{ color: "#10b981", fontWeight: 700 }}>2cm RTK</small></span>
+              <small style={{ color: residual.gnss_nearest ? "#10b981" : "#94a3b8", fontWeight: 600 }}>
+                {residual.gnss_nearest
+                  ? `${residual.gnss_nearest.fix_type} (${residual.gnss_nearest.distance_to_parcel_m ?? residual.gnss_disagreement_m}m away)`
+                  : "Unavailable (No GNSS)"}
+              </small>
             </div>
             <div className="evidence-star-row">
-              <span>RANSAC Status:</span>
-              <span className="badge-pill success">INLIER ({meta.model ? meta.model.toUpperCase() : "TPS"})</span>
+              <span>Registration Status:</span>
+              <span className={`badge-pill ${meta.registration_status === "insufficient_control_points" ? "warn" : "success"}`}>
+                {meta.registration_status === "insufficient_control_points" ? "INSUFFICIENT CONTROLS" : (meta.model ? meta.model.toUpperCase() : "REGISTRATION")}
+              </span>
             </div>
             <div className="evidence-star-row">
               <span>Spatial Displacement:</span>
-              <b style={{ color: residual.risk === "high" ? "#ef4444" : "#10b981" }}>{residual.magnitude_m} m</b>
+              <b style={{ color: residual.risk === "high" ? "#ef4444" : "#10b981" }}>
+                {residual.magnitude_m !== null && residual.magnitude_m !== undefined ? `${residual.magnitude_m} m` : "—"}
+              </b>
             </div>
             <div className="evidence-star-row">
               <span>Topology Check:</span>
-              <span className="badge-pill success">PASS (ST_IsValid)</span>
+              <span className="badge-pill success">ST_IsValid</span>
             </div>
 
             {/* DSM / DTM Elevation & Slope Metric */}
             <div className="evidence-star-row">
               <span>DSM Slope Gradient:</span>
               <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <Mountain size={13} style={{ color: isSteep ? "#f59e0b" : "#10b981" }} />
-                <b style={{ color: isSteep ? "#d97706" : "#0f172a" }}>{slopePercent.toFixed(1)}%</b>
-                {isSteep && (
-                  <span className="badge-pill warn" style={{ fontSize: "8px" }}>STEEP GRADIENT</span>
+                {slopePercent !== null ? (
+                  <>
+                    <Mountain size={13} style={{ color: isSteep ? "#f59e0b" : "#10b981" }} />
+                    <b style={{ color: isSteep ? "#d97706" : "#0f172a" }}>{slopePercent.toFixed(1)}%</b>
+                    {isSteep && (
+                      <span className="badge-pill warn" style={{ fontSize: "8px" }}>STEEP GRADIENT</span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>Unavailable</span>
                 )}
               </div>
             </div>
 
             <div className="evidence-star-row">
               <span>Temporal Classification:</span>
-              <span className="badge-pill info">{residual.temporal?.classification || "registration_error"}</span>
+              <span className="badge-pill info">{residual.temporal?.classification || "Unavailable"}</span>
             </div>
           </div>
 
@@ -232,7 +262,7 @@ export const EvidenceCardView: React.FC<EvidenceCardViewProps> = ({
 
           <div className="confidence-gauge-box">
             <div className={`gauge-circle ${isHighTrust ? "high-trust" : ""}`}>
-              {confidencePct}%
+              {confidencePct !== null ? `${confidencePct}%` : "—"}
             </div>
             <span style={{ fontSize: "11px", color: "#64748b", marginTop: "8px", fontWeight: 600 }}>
               Fused Evidence Confidence Score
