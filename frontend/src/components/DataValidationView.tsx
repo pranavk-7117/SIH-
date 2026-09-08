@@ -40,7 +40,7 @@ export const DataValidationView: React.FC<DataValidationViewProps> = ({
         {hasData && allValid && (
           <span className="badge-pill success">
             <CheckCircle2 size={13} style={{ marginRight: "4px" }} />
-            All Checks Passed
+            {validationRows.length >= 9 ? "Sources Uploaded: 9/9 • Validation: 9/9 Passed" : `All ${validationRows.length} Datasets Validated`}
           </span>
         )}
         {hasData && !allValid && (

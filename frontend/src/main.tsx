@@ -167,6 +167,9 @@ export const App: React.FC = () => {
     utilities?: any;
     dsm?: any;
     revenue?: any;
+    drone?: any;
+    ori?: any;
+    ground_truth?: any;
   }>({});
 
   const activeArea = STUDY_AREAS[activeAreaId];
@@ -322,7 +325,7 @@ export const App: React.FC = () => {
   };
 
   const handleUploadData = (
-    layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue",
+    layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue" | "drone" | "ori" | "ground_truth",
     geojson: any,
     meta: any
   ) => {
@@ -332,16 +335,29 @@ export const App: React.FC = () => {
     };
     setCustomLayers(updatedCustom);
 
+    const sourceDisplayNames: Record<string, string> = {
+      cadastral: "Cadastral",
+      drone: "Drone Imagery",
+      ori: "Orthorectified (ORI)",
+      buildings: "Building Footprints",
+      control: "GNSS / CORS",
+      municipal: "Municipal GIS",
+      dsm: "DSM / DTM Elevation",
+      utilities: "Utility Networks",
+      revenue: "Revenue Records",
+      ground_truth: "Ground Truth / GT",
+    };
+
     const newSource = {
-      source: layerType.charAt(0).toUpperCase() + layerType.slice(1),
+      source: sourceDisplayNames[layerType] || (layerType.charAt(0).toUpperCase() + layerType.slice(1)),
       file: meta?.filename || `${layerType}_upload.${meta?.file_format || "geojson"}`,
-      format: meta?.file_format?.toUpperCase() || (meta?.filename?.endsWith(".csv") ? "CSV" : meta?.filename?.endsWith(".tif") ? "GeoTIFF" : "GeoJSON"),
+      format: meta?.file_format?.toUpperCase() || (meta?.filename?.endsWith(".csv") ? "CSV" : (meta?.filename?.endsWith(".tif") || meta?.filename?.endsWith(".tiff")) ? "GeoTIFF" : "GeoJSON"),
       crs: meta?.crs || (layerType === "revenue" ? "-" : "EPSG:4326"),
-      features: String(meta?.features || meta?.feature_count || meta?.points_parsed || (geojson?.features?.length || 1)),
+      features: String(meta?.features || meta?.features_count || meta?.points_parsed || meta?.records_parsed || (geojson?.features?.length || 1)),
       status: "Valid" as const,
     };
     setUploadedSources((prev) => {
-      const filtered = prev.filter((s) => s.source.toLowerCase() !== layerType.toLowerCase());
+      const filtered = prev.filter((s) => s.source.toLowerCase() !== (sourceDisplayNames[layerType] || layerType).toLowerCase());
       return [...filtered, newSource];
     });
 
@@ -482,6 +498,7 @@ export const App: React.FC = () => {
           {currentScreen === "sources" && (
             <SourceViewerView
               data={liveData}
+              investigation={activeInvestigation}
               onContinue={() => setCurrentScreen("extract")}
             />
           )}

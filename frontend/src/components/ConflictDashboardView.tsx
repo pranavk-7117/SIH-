@@ -39,7 +39,7 @@ export const ConflictDashboardView: React.FC<ConflictDashboardViewProps> = ({
     critical: true,
     needs_review: true,
     low_priority: true,
-    resolved: false,
+    resolved: true,
   });
   const [selectedStates, setSelectedStates] = useState<Record<string, boolean>>({
     auto_accepted: true,
@@ -54,31 +54,61 @@ export const ConflictDashboardView: React.FC<ConflictDashboardViewProps> = ({
     const residuals = data.residuals || [];
     if (!residuals || residuals.length === 0) return [];
 
-    return residuals
-      .filter((r: any) => r.risk === "high" || r.risk === "medium" || r.ambiguous_match)
-      .map((r: any) => {
-        const isCritical = r.risk === "high" || r.ambiguous_match;
-        const isDnd = r.state?.includes("Do Not Decide") || r.ambiguous_match;
-        const disp = Number((r.displacement_m || r.residual_m || 0).toFixed(1));
-        const trust = Number((1 - Math.min(0.9, (r.residual_m || 0) / 8)).toFixed(2));
-        return {
-          id: r.parcel_id || `parcel-${r.parcel_num}`,
-          parcel_num: String(r.parcel_num || r.parcel_id || "").replace("parcel-", ""),
-          severity: isCritical ? "critical" : "needs_review",
-          severity_label: isCritical ? "Critical" : "Needs Review",
-          conflict_type: r.dispute_type || (disp > 3 ? "Boundary displacement" : "Area mismatch"),
-          displacement: disp,
-          trust_score: trust,
-          decision_state: isDnd ? "dnd" : "needs_review",
-          decision_label: isDnd ? "DO NOT DECIDE" : "NEEDS REVIEW",
-          why: {
-            displacement: `${disp} m`,
-            source_disagreement: r.source_disagreement || "Cadastral vs Drone Footprint Observation",
-            registration_residual: `${(r.residual_m || disp).toFixed(1)} m avg`,
-            legal_status: r.legal_flag ? "Dispute Flag on Revenue Record" : "Standard Title Record",
-          },
-        };
-      });
+    return residuals.map((r: any, idx: number) => {
+      const dispM = r.post_alignment_residual_m ?? r.magnitude_m ?? r.displacement_m ?? r.residual_m ?? 0;
+      const disp = Number(Number(dispM).toFixed(2));
+      const trust = r.confidence !== null && r.confidence !== undefined
+        ? Number(Number(r.confidence).toFixed(2))
+        : Number((1 - Math.min(0.9, disp / 6.0)).toFixed(2));
+
+      let severity: "critical" | "needs_review" | "low_priority" | "resolved" = "low_priority";
+      let severityLabel = "Low Priority";
+      let decisionState: "dnd" | "needs_review" | "auto_accepted" | "resolved" = "auto_accepted";
+      let decisionLabel = "AUTO ACCEPTED";
+
+      const rRisk = r.risk?.toLowerCase();
+      const rState = (r.state || "").toLowerCase();
+
+      if (rRisk === "high" || rState.includes("dnd") || rState.includes("do not decide") || r.ambiguous_match) {
+        severity = "critical";
+        severityLabel = "Critical";
+        decisionState = "dnd";
+        decisionLabel = "DO NOT DECIDE (DND)";
+      } else if (rRisk === "medium" || rState.includes("review") || disp >= 1.2) {
+        severity = "needs_review";
+        severityLabel = "Needs Review";
+        decisionState = "needs_review";
+        decisionLabel = "NEEDS REVIEW";
+      } else if (rRisk === "resolved" || disp < 0.6) {
+        severity = "resolved";
+        severityLabel = "Resolved";
+        decisionState = "auto_accepted";
+        decisionLabel = "AUTO ACCEPTED";
+      } else {
+        severity = "low_priority";
+        severityLabel = "Low Priority";
+        decisionState = "auto_accepted";
+        decisionLabel = "AUTO ACCEPTED";
+      }
+
+      return {
+        id: r.parcel_id || `parcel-${r.parcel_num}`,
+        parcel_num: String(r.parcel_num || r.parcel_id || (101 + idx)).replace("parcel-", ""),
+        severity,
+        severity_label: severityLabel,
+        conflict_type: r.dispute_type || (disp > 3.0 ? "Severe boundary shift" : disp > 1.2 ? "Boundary displacement" : "Area alignment"),
+        displacement: disp,
+        trust_score: trust,
+        decision_state: decisionState,
+        decision_label: decisionLabel,
+        why: {
+          displacement: `${disp.toFixed(2)} m`,
+          source_disagreement: r.source_disagreement || "Cadastral vs Drone Footprint Observation",
+          registration_residual: `${disp.toFixed(2)} m post-alignment`,
+          legal_status: r.revenue_record?.dispute_flag ? "Dispute Flag on Revenue Record" : "Standard Title Record",
+        },
+      };
+    });
   }, [externalConflicts, data.residuals]);
 
   const hasData = conflicts.length > 0;
@@ -184,7 +214,7 @@ export const ConflictDashboardView: React.FC<ConflictDashboardViewProps> = ({
                   onChange={(e) => setSelectedSeverity({ ...selectedSeverity, critical: e.target.checked })}
                 />
                 <span className="dot critical" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444" }} />
-                <span>Critical (High DND)</span>
+                <span>Critical (DND): <strong>{criticalCount}</strong></span>
               </label>
               <label className="checkbox-label" style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", fontSize: "12.5px", cursor: "pointer" }}>
                 <input
@@ -193,7 +223,7 @@ export const ConflictDashboardView: React.FC<ConflictDashboardViewProps> = ({
                   onChange={(e) => setSelectedSeverity({ ...selectedSeverity, needs_review: e.target.checked })}
                 />
                 <span className="dot warning" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b" }} />
-                <span>Needs Review</span>
+                <span>Needs Review: <strong>{reviewCount}</strong></span>
               </label>
               <label className="checkbox-label" style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", fontSize: "12.5px", cursor: "pointer" }}>
                 <input
@@ -201,8 +231,8 @@ export const ConflictDashboardView: React.FC<ConflictDashboardViewProps> = ({
                   checked={selectedSeverity.low_priority}
                   onChange={(e) => setSelectedSeverity({ ...selectedSeverity, low_priority: e.target.checked })}
                 />
-                <span className="dot low" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#94a3b8" }} />
-                <span>Low Priority</span>
+                <span className="dot low" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }} />
+                <span>Low Priority: <strong>{lowCount}</strong></span>
               </label>
               <label className="checkbox-label" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", cursor: "pointer" }}>
                 <input
@@ -210,8 +240,8 @@ export const ConflictDashboardView: React.FC<ConflictDashboardViewProps> = ({
                   checked={selectedSeverity.resolved}
                   onChange={(e) => setSelectedSeverity({ ...selectedSeverity, resolved: e.target.checked })}
                 />
-                <span className="dot resolved" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }} />
-                <span>Resolved</span>
+                <span className="dot resolved" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#059669" }} />
+                <span>Resolved: <strong>{resolvedCount}</strong></span>
               </label>
             </div>
 

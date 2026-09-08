@@ -26,7 +26,7 @@ interface UploadIngestViewProps {
   onTriggerNormalize?: () => void;
   onNormalize?: () => void;
   onContinue?: () => void;
-  onUploadData?: (layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue", geojson: any, meta: any) => void;
+  onUploadData?: (layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue" | "drone" | "ori" | "ground_truth", geojson: any, meta: any) => void;
   investigation?: any;
 }
 
@@ -51,18 +51,44 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
   const handleUploadGeneric = async (
     sourceKey: string,
     file: File,
-    layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue" | "ori" | "ground_truth",
+    layerType: "cadastral" | "buildings" | "control" | "municipal" | "utilities" | "dsm" | "revenue" | "drone" | "ori" | "ground_truth",
     customParser?: () => Promise<any>
   ) => {
     setIsUploading(true);
     setUploadStatus(`Uploading and parsing ${file.name}...`);
     try {
       let res: any = null;
+      let parsedCount: number | null = null;
+
       if (customParser) {
         res = await customParser();
       } else if (file.name.endsWith(".geojson") || file.name.endsWith(".json")) {
+        // Client-side inspection of JSON for elevation samples or features
+        try {
+          const text = await file.text();
+          const json = JSON.parse(text);
+          if (json && typeof json === "object") {
+            if (Array.isArray(json.features)) {
+              parsedCount = json.features.length;
+            } else {
+              for (const k of ["samples", "points", "records", "elevations", "data", "grid"]) {
+                if (Array.isArray(json[k])) {
+                  parsedCount = json[k].length;
+                  break;
+                }
+              }
+            }
+          }
+        } catch {}
         res = await api.uploadGeoJSON(file);
       } else if (file.name.endsWith(".csv") || file.name.endsWith(".txt")) {
+        try {
+          const text = await file.text();
+          const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+          if (lines.length > 1) {
+            parsedCount = lines.length - 1; // data rows excluding header
+          }
+        } catch {}
         res = await api.uploadGNSSCSV(file);
       } else if (file.name.endsWith(".tif") || file.name.endsWith(".tiff")) {
         res = await api.uploadDroneGeoTIFF(file);
@@ -73,16 +99,23 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
       // Attach to backend investigation if active
       if (investigation?.id) {
         try {
-          await api.uploadInvestigationSource(investigation.id, sourceKey, file);
+          const backendRes = await api.uploadInvestigationSource(investigation.id, sourceKey, file);
+          if (backendRes && backendRes.source) {
+            if (backendRes.source.features_count) {
+              parsedCount = backendRes.source.features_count;
+            }
+          }
         } catch (e) {
           console.warn("Backend investigation source attach notice:", e);
         }
       }
 
+      const finalCount = parsedCount || res?.features || res?.points_parsed || res?.records_parsed || res?.feature_count || 1;
+
       const info = {
         filename: file.name,
-        features: res?.features || res?.points_parsed || res?.records_parsed || 1,
-        features_count: res?.features || res?.points_parsed || res?.records_parsed || 1,
+        features: finalCount,
+        features_count: finalCount,
         file_format: file.name.split(".").pop()?.toUpperCase() || "GEOJSON",
         status: "VALID",
       };
@@ -90,7 +123,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
       setUploadedMap((prev) => ({ ...prev, [sourceKey]: info }));
       setUploadStatus(`✓ Successfully uploaded ${file.name} (${info.features} features)`);
 
-      if (onUploadData && (layerType === "cadastral" || layerType === "buildings" || layerType === "control" || layerType === "municipal" || layerType === "utilities" || layerType === "dsm" || layerType === "revenue")) {
+      if (onUploadData) {
         onUploadData(layerType, res?.geojson || res?.footprint_geojson || { type: "FeatureCollection", features: [] }, info);
       }
     } catch (err: any) {
@@ -107,7 +140,7 @@ export const UploadIngestView: React.FC<UploadIngestViewProps> = ({
 
   const handleDroneUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) handleUploadGeneric("drone", f, "buildings");
+    if (f) handleUploadGeneric("drone", f, "drone");
   };
 
   const handleORIUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

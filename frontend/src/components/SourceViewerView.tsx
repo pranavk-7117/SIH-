@@ -7,11 +7,12 @@ type AnyObj = Record<string, any>;
 
 interface SourceViewerViewProps {
   data: AnyObj;
+  investigation?: any;
   onNavigate?: (screen: Screen) => void;
   onContinue?: () => void;
 }
 
-export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, onNavigate, onContinue }) => {
+export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, investigation, onNavigate, onContinue }) => {
   const [viewMode, setViewMode] = useState<"grid" | "unified">("grid");
   const [opacityCadastral, setOpacityCadastral] = useState(60);
   const [opacityDrone, setOpacityDrone] = useState(70);
@@ -25,7 +26,7 @@ export const SourceViewerView: React.FC<SourceViewerViewProps> = ({ data, onNavi
         <div className="breadcrumb">
           <span>Investigation</span>
           <span>&gt;</span>
-          <span>INV-2026-00124</span>
+          <span>{investigation?.id || data?.id || "INV-2026-00124"}</span>
           <span>&gt;</span>
           <span className="active">Source Viewer</span>
         </div>

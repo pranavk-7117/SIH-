@@ -21,6 +21,7 @@ interface DemoMapProps {
   showHarmonized?: boolean;
   showResiduals?: boolean;
   singleParcelFocus?: number | string;
+  customLegend?: React.ReactNode;
 }
 
 export const DemoMap: React.FC<DemoMapProps> = ({
@@ -41,6 +42,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
   showHarmonized = false,
   showResiduals = false,
   singleParcelFocus,
+  customLegend,
 }) => {
   const handleParcelClick = (id: string) => {
     if (onParcelClick) onParcelClick(id);
@@ -152,7 +154,7 @@ export const DemoMap: React.FC<DemoMapProps> = ({
             .join(" ");
         }
 
-        // Residual vector line
+        // Residual vector line & data
         const res = residuals[idx];
         let resLine = null;
         if (res && res.from && res.to) {
@@ -161,18 +163,34 @@ export const DemoMap: React.FC<DemoMapProps> = ({
           resLine = { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
         }
 
+        const dispM = res ? (res.post_alignment_residual_m ?? res.magnitude_m ?? res.displacement_m ?? res.residual_m) : null;
+        const dispStr = dispM !== null && dispM !== undefined ? `${Number(dispM).toFixed(2)} m` : null;
+
+        const mergedProps = {
+          ...p.properties,
+          residual: res,
+          displacement_m: dispM,
+          conflict_m: dispM !== null && dispM !== undefined ? Number(dispM).toFixed(2) : null,
+          displacement: dispStr,
+          confidence: res?.confidence,
+          risk: res?.risk || p.properties.risk,
+          heatColor: res?.heatColor || p.properties.heatColor || (res?.risk === "high" ? "#ef4444" : res?.risk === "medium" ? "#f59e0b" : res?.risk === "resolved" ? "#059669" : "#10b981"),
+          state: res?.state,
+        };
+
         return {
           id: p.id,
           parcel_id: p.properties.parcel_id,
           parcel_number: p.properties.parcel_number,
-          props: p.properties,
+          props: mergedProps,
+          residual: res,
           points: screenPts.join(" "),
           dronePoints: dronePts,
           harmPoints: harmPts,
           residualLine: resLine,
           cx: centerPt.x,
           cy: centerPt.y,
-          heatColor: p.properties.heatColor || "#22c55e",
+          heatColor: mergedProps.heatColor,
         };
       });
 
@@ -461,64 +479,80 @@ export const DemoMap: React.FC<DemoMapProps> = ({
 
       {/* Floating Legend */}
       {!darkBackground && (
-        <div className="map-floating-legend">
-          {showCadastral && (
-            <span>
-              <i className="amber" /> Cadastral (1960)
-            </span>
-          )}
-          {showDrone && (
-            <span>
-              <i className="cyan" /> Drone Footprint
-            </span>
-          )}
-          {showMunicipal && (
-            <span>
-              <i className="amber" style={{ background: "#f59e0b" }} /> Municipal Roads
-            </span>
-          )}
-          {showHarmonized && (
-            <span>
-              <i className="green" /> Harmonized
-            </span>
-          )}
-          {showResiduals && (
-            <span>
-              <i className="red" /> Residual Vector
-            </span>
-          )}
-          {showGNSS && (
-            <span>
-              <i className="purple" /> GNSS Points
-            </span>
-          )}
-        </div>
+        customLegend ? (
+          <div className="map-floating-legend">
+            {customLegend}
+          </div>
+        ) : (
+          <div className="map-floating-legend">
+            {showCadastral && (
+              <span>
+                <i className="amber" /> Cadastral (1960)
+              </span>
+            )}
+            {showDrone && (
+              <span>
+                <i className="cyan" /> Drone Footprint
+              </span>
+            )}
+            {showMunicipal && (
+              <span>
+                <i className="amber" style={{ background: "#f59e0b" }} /> Municipal Roads
+              </span>
+            )}
+            {showHarmonized && (
+              <span>
+                <i className="green" /> Harmonized
+              </span>
+            )}
+            {showResiduals && (
+              <span>
+                <i className="red" /> Residual Vector
+              </span>
+            )}
+            {showGNSS && (
+              <span>
+                <i className="purple" /> GNSS Points
+              </span>
+            )}
+          </div>
+        )
       )}
 
       {/* Floating Detail Popup */}
-      {(hoveredParcel || selectedParcelId) && !darkBackground && (
-        <div className="map-floating-popup">
-          <b>Parcel {hoveredParcel?.parcel_id || activeParcelNumber}</b>
-          <div className="popup-row">
-            <span>Conflict Level:</span>
-            <b style={{ color: hoveredParcel?.heatColor === "#ef4444" || activeParcelNumber === "101" ? "#ef4444" : "#10b981" }}>
-              {hoveredParcel?.risk ? hoveredParcel.risk.toUpperCase() : "HIGH"}
-            </b>
+      {(hoveredParcel || selectedParcelId) && !darkBackground && (() => {
+        const pRisk = hoveredParcel?.risk ? hoveredParcel.risk.toUpperCase() : "RESOLVED";
+        const pRiskColor = hoveredParcel?.heatColor || (pRisk === "HIGH" ? "#ef4444" : pRisk === "MEDIUM" ? "#f59e0b" : "#10b981");
+        const pDisp = hoveredParcel?.displacement || (hoveredParcel?.conflict_m ? `${hoveredParcel.conflict_m} m` : (hoveredParcel?.displacement_m !== undefined && hoveredParcel?.displacement_m !== null ? `${Number(hoveredParcel.displacement_m).toFixed(2)} m` : "0.00 m"));
+        const pConf = hoveredParcel?.confidence !== undefined && hoveredParcel?.confidence !== null ? `${Math.round(hoveredParcel.confidence * 100)}%` : "94%";
+        const pState = hoveredParcel?.state || (pRisk === "HIGH" ? "Review Required" : "Auto Accepted");
+
+        return (
+          <div className="map-floating-popup">
+            <b>Parcel {hoveredParcel?.parcel_number || hoveredParcel?.parcel_id || activeParcelNumber}</b>
+            <div className="popup-row">
+              <span>Conflict Level:</span>
+              <b style={{ color: pRiskColor }}>
+                {pRisk}
+              </b>
+            </div>
+            <div className="popup-row">
+              <span>Displacement:</span>
+              <b>{pDisp}</b>
+            </div>
+            <div className="popup-row">
+              <span>Confidence:</span>
+              <b>{pConf}</b>
+            </div>
+            <div className="popup-row" style={{ marginTop: "4px" }}>
+              <span style={{ color: "#0284c7", fontWeight: 700 }}>Status:</span>
+              <span className={`badge-pill ${pRisk === "HIGH" ? "danger" : pRisk === "MEDIUM" ? "warn" : "success"}`} style={{ fontSize: "9px" }}>
+                {pState}
+              </span>
+            </div>
           </div>
-          <div className="popup-row">
-            <span>Displacement:</span>
-            <b>{hoveredParcel?.conflict_m ? `${hoveredParcel.conflict_m} m` : "2.45 m"}</b>
-          </div>
-          <div className="popup-row">
-            <span>Confidence:</span>
-            <b>{hoveredParcel?.confidence ? `${Math.round(hoveredParcel.confidence * 100)}%` : "34%"}</b>
-          </div>
-          <div className="popup-row" style={{ marginTop: "4px" }}>
-            <span style={{ color: "#0284c7", fontWeight: 700 }}>Action Required:</span>
-            <span className="badge-pill danger" style={{ fontSize: "9px" }}>Review</span>
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
