@@ -374,13 +374,13 @@ export const DemoMap: React.FC<DemoMapProps> = ({
                 />
               )}
 
-              {/* 3. Cadastral / Heatmap Polygons */}
+              {/* 3. Cadastral / Heatmap Polygons — color by conflict severity when residual data exists */}
               {showCadastral && !darkBackground && (
                 <polygon
                   points={item.points}
-                  fill={mode === "discrepancy" ? item.heatColor : "#f59e0b"}
-                  fillOpacity={mode === "discrepancy" ? 0.65 : opacityCadastral * 0.45}
-                  stroke={mode === "discrepancy" ? "#ffffff" : isSelected ? "#ffffff" : "#f59e0b"}
+                  fill={item.residual ? item.heatColor : "#f59e0b"}
+                  fillOpacity={item.residual ? 0.65 : opacityCadastral * 0.45}
+                  stroke={item.residual ? (isSelected ? "#ffffff" : item.heatColor) : (isSelected ? "#ffffff" : "#f59e0b")}
                   strokeWidth={mode === "review" ? "3.5" : isSelected ? "3.0" : "2.2"}
                   strokeDasharray={mode === "review" ? "6,3" : "none"}
                   onMouseEnter={() => setHoveredParcel(item.props)}
@@ -486,9 +486,18 @@ export const DemoMap: React.FC<DemoMapProps> = ({
         ) : (
           <div className="map-floating-legend">
             {showCadastral && (
-              <span>
-                <i className="amber" /> Cadastral (1960)
-              </span>
+              svgPolys.some(p => p.residual) ? (
+                <>
+                  <span><i style={{ background: "#ef4444", borderRadius: "2px" }} /> Critical / High</span>
+                  <span><i style={{ background: "#f59e0b", borderRadius: "2px" }} /> Needs Review</span>
+                  <span><i style={{ background: "#10b981", borderRadius: "2px" }} /> Low Priority</span>
+                  <span><i style={{ background: "#059669", borderRadius: "2px" }} /> Resolved</span>
+                </>
+              ) : (
+                <span>
+                  <i className="amber" /> Cadastral (1960)
+                </span>
+              )
             )}
             {showDrone && (
               <span>

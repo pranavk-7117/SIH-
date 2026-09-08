@@ -227,9 +227,9 @@ export const App: React.FC = () => {
     }
   }, [activeAreaId, registrationModel, authorityWeights, dndThreshold, customLayers, activeInvestigation]);
 
-  // Run on mount only when active investigation or uploaded data exists
+  // Run only when user has actually uploaded data — never on bare investigation ID
   useEffect(() => {
-    if (activeInvestigation || Object.keys(customLayers).length > 0) {
+    if (Object.keys(customLayers).length > 0) {
       runHarmonization();
     }
   }, [activeAreaId, registrationModel, activeInvestigation]);
@@ -399,7 +399,7 @@ export const App: React.FC = () => {
     ? [(uploadedBounds[0] + uploadedBounds[2]) / 2, (uploadedBounds[1] + uploadedBounds[3]) / 2]
     : null;
 
-  const hasActiveSession = Boolean(activeInvestigation || Object.keys(customLayers).length > 0);
+  const hasActiveSession = Object.keys(customLayers).length > 0;
 
   // Build data bundle for views from live results
   // When an investigation is active, layers come strictly from uploaded sources, NEVER study area defaults!
